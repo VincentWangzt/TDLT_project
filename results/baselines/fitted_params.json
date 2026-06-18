@@ -1,0 +1,50 @@
+{
+  "models": [
+    {
+      "fit_target": "EMA loss",
+      "lambda": 0.99,
+      "method": "MTL",
+      "objective": 9.15661643175839e-05,
+      "params": [
+        2.808503706682503,
+        3588.968218515234,
+        0.001994900069390035,
+        1.1551999966011257
+      ],
+      "selection_signal": "cosine fitting objective only"
+    },
+    {
+      "fit_target": "EMA loss",
+      "method": "MPL",
+      "objective": 0.0002654468034027465,
+      "params": [
+        2.5536892082023153,
+        38.317331511918155,
+        1.061862978418472,
+        3.560570114649357e-05,
+        0.5215618058320673,
+        0.6092707380496354,
+        0.5568310528166955
+      ],
+      "selection_signal": "cosine fitting objective only",
+      "source_stride": 100
+    },
+    {
+      "fit_target": "EMA loss",
+      "huber_delta": 0.001,
+      "method": "FSL",
+      "objective": 0.0003939575113907971,
+      "params": {
+        "L0": 2.8069188804329466,
+        "c1": 1.2201501820411287,
+        "c2": 1.4562124474353542,
+        "c3": 169.12334133401842,
+        "c4": 0.7716546431957408,
+        "gamma": 1.4678803026451013,
+        "s": 1.1563714137230927
+      },
+      "selection_signal": "pinned faithful FSL reproduction parameters",
+      "source_stride": 50
+    }
+  ]
+}

@@ -1,0 +1,122 @@
+{
+  "models": [
+    {
+      "fit_target": "EMA loss",
+      "lambdas": [
+        0.99,
+        0.999
+      ],
+      "method": "KMTL-m2",
+      "objective": 0.000906436688672444,
+      "params": [
+        2.093679146729288,
+        57.63038751904518,
+        1e-10,
+        0.4682125257528508,
+        0.3343901229668801,
+        0.9392376320853506
+      ],
+      "selection_signal": "pinned audited strict variant reproduction parameters"
+    },
+    {
+      "fit_target": "EMA loss",
+      "lambdas": [
+        0.99,
+        0.999,
+        0.9999
+      ],
+      "method": "KMTL-m3",
+      "objective": 0.0002469375141364033,
+      "params": [
+        2.4443095648743998,
+        26.394030101060537,
+        4.273421098330555e-05,
+        0.4497780937935987,
+        0.7043212564892664,
+        0.663733809358345,
+        0.5255930178351155
+      ],
+      "selection_signal": "pinned audited strict variant reproduction parameters"
+    },
+    {
+      "fit_target": "EMA loss",
+      "method": "FSL-MPL+ small",
+      "objective": 0.00026125955928691085,
+      "params": [
+        2.512222255241439,
+        36.81032073262319,
+        0.3147654116832695,
+        0.5038674760624182,
+        0.00020467825665474666,
+        0.9528367422508873,
+        0.49038424588672824
+      ],
+      "selection_signal": "pinned audited strict variant reproduction parameters",
+      "source_stride": 100
+    },
+    {
+      "fit_target": "EMA loss",
+      "method": "FSL-MPL+ source",
+      "objective": 0.00025277124957852386,
+      "params": [
+        2.5396358872770786,
+        48.74547392000942,
+        1.089051604107982,
+        0.5443247983760767,
+        4.356407203746364e-05,
+        0.8124720325775963,
+        0.3983341306007284,
+        0.8257230915915316
+      ],
+      "selection_signal": "pinned audited strict variant reproduction parameters",
+      "source_stride": 100
+    },
+    {
+      "alpha": 0.1,
+      "base": {
+        "method": "FSL-MPL+ source",
+        "objective": 0.00025277124957852386,
+        "params": [
+          2.5396358872770786,
+          48.74547392000942,
+          1.089051604107982,
+          0.5443247983760767,
+          4.356407203746364e-05,
+          0.8124720325775963,
+          0.3983341306007284,
+          0.8257230915915316
+        ],
+        "source_stride": 100
+      },
+      "coef": [
+        0.05743707448490477,
+        0.004931268192100239,
+        -0.004931268192097987,
+        3.248137580324946e-05,
+        0.0,
+        0.05640633151116142
+      ],
+      "fit_target": "EMA loss",
+      "intercept": 0.0014092481092664482,
+      "mean": [
+        9.496612271718604,
+        0.37370030801636245,
+        0.6262996919836333,
+        0.6599872367581366,
+        1.0,
+        0.009164938526117723
+      ],
+      "method": "FSL-MPL+ source + NCPL-lite",
+      "mse": 5.17331471214044e-06,
+      "scale": [
+        0.5897045629192299,
+        0.31761279581573404,
+        0.3176127958157312,
+        0.3045775032115692,
+        1.0,
+        0.00402893864985023
+      ],
+      "selection_signal": "pinned audited strict variant reproduction parameters"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "fsl": {
+    "all_passed": true,
+    "response_monotone": true,
+    "zero_decay_response_matches_signal": true
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "models": [
+    {
+      "base_method": "MTL",
+      "disclosure": "Pinned model replay; WSD was used adaptively for hyperparameter/model selection.",
+      "fit_target": "EMA loss",
+      "lambda": 0.9997,
+      "method": "Tuned MTL",
+      "objective": 0.00011095145309824642,
+      "params": [
+        2.7284210564756814,
+        774.0970766973335,
+        4.931754302546564e-05,
+        0.93426651623693
+      ],
+      "selection_signal": "WSD-adaptive autoresearch keep/discard loop"
+    }
+  ]
+}

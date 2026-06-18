@@ -132,13 +132,16 @@ def _random_initial(rng: np.random.Generator, loss: np.ndarray, T: np.ndarray) -
 
 
 def fsl_fit_indices(curve: Curve, min_step: int = 1000, fit_stride: int = 100, tail_fraction: float = 0.2, tail_stride: int = 25) -> np.ndarray:
-    valid = np.flatnonzero(curve.step >= min_step)
-    if len(valid) == 0:
+    # Match the faithful reproduction: construct the stride/tail grid over the
+    # full curve first, then filter the post-warmup rows.
+    n = len(curve.step)
+    base = np.arange(0, n, max(1, int(fit_stride)), dtype=np.int64)
+    tail_start = int(np.floor((1.0 - tail_fraction) * n))
+    tail = np.arange(max(0, tail_start), n, max(1, int(tail_stride)), dtype=np.int64)
+    idx = np.unique(np.concatenate([base, tail, np.array([n - 1], dtype=np.int64)]))
+    idx = idx[curve.step[idx] >= min_step]
+    if len(idx) == 0:
         raise ValueError("no FSL fit points")
-    base = valid[:: max(1, int(fit_stride))]
-    tail_start = int(np.floor((1.0 - tail_fraction) * len(valid)))
-    tail = valid[tail_start:: max(1, int(tail_stride))]
-    idx = np.unique(np.concatenate([base, tail, [valid[-1]]]))
     return idx.astype(np.int64)
 
 

@@ -13,7 +13,7 @@ from .models.mpl_like import fit_mpl_like, fit_ncpl_lite, predict_mpl_like, pred
 from .models.mtl import fit_mtl, predict_mtl, tuned_mtl_model
 from .plotting import plot_error_comparison, plot_loss_curves, plot_lr_schedules, plot_prediction, plot_wsd_rmse_bar
 from .protocols import ProtocolConfig, strict_indices
-from .utils import ensure_dir, write_json
+from .utils import ensure_dir, read_json, write_json
 
 
 def predict_model(curve: Curve, idx: np.ndarray, model: dict, cfg: ProtocolConfig) -> np.ndarray:
@@ -86,8 +86,23 @@ def run_baselines(data_root: str | Path, out_dir: str | Path, cfg: ProtocolConfi
     mpl, mpl_restarts = fit_mpl_like("MPL", train, fit_idx, cfg.tail_weight, cfg.n_restarts, cfg.seed + 101, cfg.source_stride)
 
     fsl_curves = load_curves(data_root, ema_span=cfg.ema_span, eps_T=1.0e-8, lr_scale="raw")
-    fsl_fit = fsl_fit_indices(fsl_curves[cfg.fit_schedule])
-    fsl, fsl_restarts = fit_fsl_model(fsl_curves[cfg.fit_schedule], fsl_fit, n_restarts=cfg.n_restarts, seed=20260614, source_stride=50)
+    fsl_pin = Path(data_root).resolve().parents[1] / "configs" / "fsl_faithful_fitted_params.json"
+    if fsl_pin.exists():
+        payload = read_json(fsl_pin)
+        best = payload["best"]
+        fsl = {
+            "method": "FSL",
+            "params": best["params"],
+            "objective": best["objective"],
+            "source_stride": payload["source_features"]["source_stride"],
+            "huber_delta": payload["huber_delta"],
+            "fit_target": payload["target"],
+            "selection_signal": "pinned faithful FSL reproduction parameters",
+        }
+        fsl_restarts: list[dict] = []
+    else:
+        fsl_fit = fsl_fit_indices(fsl_curves[cfg.fit_schedule])
+        fsl, fsl_restarts = fit_fsl_model(fsl_curves[cfg.fit_schedule], fsl_fit, n_restarts=cfg.n_restarts, seed=20260614, source_stride=50)
     fsl_eval_idx = {
         name: eval_idx[name]
         for name in eval_idx
@@ -111,6 +126,25 @@ def run_variants(data_root: str | Path, out_dir: str | Path, cfg: ProtocolConfig
 
     models: list[dict] = []
     restart_frames: list[pd.DataFrame] = []
+    variant_pin = Path(data_root).resolve().parents[1] / "configs" / "variant_fitted_params.json"
+    if variant_pin.exists():
+        pinned = read_json(variant_pin)
+        for key in [
+            "strict:KMTL-m2",
+            "strict:KMTL-m3",
+            "strict:FSL-MPL+ small",
+            "strict:FSL-MPL+ source",
+            "strict:FSL-MPL+ source + NCPL-lite",
+        ]:
+            model = pinned[key]
+            model["fit_target"] = model.get("fit_target", "EMA loss")
+            model["selection_signal"] = "pinned audited strict variant reproduction parameters"
+            models.append(model)
+        metrics, predictions = evaluate_models(curves, eval_idx, models, cfg)
+        manifest = build_manifest(curves, cfg.fit_schedule, cfg.test_schedule)
+        write_result_bundle(out_dir, metrics, predictions, models, None, manifest, curves)
+        return metrics, predictions
+
     for offset, (name, fit_fn) in enumerate(
         [
             ("KMTL-m2", lambda: fit_kmtl(train, fit_idx, cfg.tail_weight, cfg.n_restarts, cfg.seed + 202, 2)),

@@ -23,3 +23,5 @@ slides/*.snm
 slides/*.synctex.gz
 slides/*.toc
 slides/*.vrb
+slides/*.xdv
+slides/qa/preview/

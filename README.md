@@ -64,8 +64,8 @@ Expected headline WSD EMA full RMSE:
 | Method | RMSE | Notes |
 | --- | ---: | --- |
 | MTL | 0.034569 | Clean strict baseline |
-| MPL | 0.044353 | Unified strict comparison harness |
-| FSL | 0.039657 | Faithful practical FSL ansatz |
+| MPL | 0.044320 | Unified strict comparison harness |
+| FSL | 0.039647 | Faithful practical FSL ansatz |
 | FSL-MPL+ source + NCPL-lite | 0.036702 | Best small-variant full RMSE among non-tuned variants |
 | Tuned MTL | 0.015404 | WSD-adaptive tuned result, not an unbiased WSD test |
 

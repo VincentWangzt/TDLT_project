@@ -1,0 +1,15 @@
+{
+  "ema_span": 201,
+  "min_step": 1000,
+  "fit_stride": 800,
+  "tail_fit_stride": 250,
+  "eval_stride": 20,
+  "source_stride": 100,
+  "eps_T": 1.0,
+  "tail_weight": 2.0,
+  "n_restarts": 20,
+  "seed": 20260527,
+  "fit_schedule": "cosine",
+  "test_schedule": "wsd",
+  "aux_schedule": "811"
+}

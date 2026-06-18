@@ -1,0 +1,25 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+*.egg-info/
+build/
+dist/
+
+# Runtime outputs are intentionally regenerated, but curated CSV/PNG/PDF
+# artifacts under results/ and slides/ are committed for the final submission.
+tmp/
+slides/*.aux
+slides/*.bbl
+slides/*.blg
+slides/*.fdb_latexmk
+slides/*.fls
+slides/*.log
+slides/*.nav
+slides/*.out
+slides/*.snm
+slides/*.synctex.gz
+slides/*.toc
+slides/*.vrb

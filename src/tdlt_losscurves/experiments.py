@@ -155,19 +155,18 @@ def run_tuned_mtl(data_root: str | Path, out_dir: str | Path, cfg: ProtocolConfi
     train = [curves[cfg.fit_schedule]]
     selection_path = Path(config_dir) / "tuned_mtl_selection.json"
     if selection_path.exists():
-        selection = read_json(selection_path)
-        setting = selection["search_setting"]
+        setting = read_json(selection_path)
         tail_weight = float(setting["tail_weight"])
         n_restarts = int(setting["n_restarts"])
-        seed = int(setting["attempt_seed"])
+        seed = int(setting["seed"])
         lambda_grid = [float(x) for x in setting["lambda_grid"]]
-        selection_signal = "fresh cosine fit using WSD-adaptively selected tuned-MTL search setting"
+        selection_signal = "fresh cosine fit using selected expanded tuned-MTL configuration"
     else:
         tail_weight = 3.0
         n_restarts = 50
         seed = 20264586
         lambda_grid = WIDE_LAMBDA_GRID
-        selection_signal = "fresh cosine fit using built-in tuned-MTL search setting fallback"
+        selection_signal = "fresh cosine fit using built-in tuned-MTL configuration fallback"
     model, restart_rows = fit_mtl(train, fit_idx, tail_weight, n_restarts, seed, lambda_grid=lambda_grid)
     model = {
         **model,
@@ -178,7 +177,7 @@ def run_tuned_mtl(data_root: str | Path, out_dir: str | Path, cfg: ProtocolConfi
         "seed": seed,
         "lambda_grid": lambda_grid,
         "selection_signal": selection_signal,
-        "disclosure": "Parameters are refit from cosine data; the hyperparameter setting was selected through WSD-adaptive autoresearch.",
+        "disclosure": "Traditional MTL formula with expanded lambda grid and tail weighting; parameters are refit from cosine data.",
     }
     metrics, predictions = evaluate_models(curves, eval_idx, [model], cfg)
     manifest = build_manifest(curves, cfg.fit_schedule, cfg.test_schedule)

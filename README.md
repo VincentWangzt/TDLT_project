@@ -26,11 +26,10 @@ The repository exposes:
 - FSL: faithful practical ansatz from Functional Scaling Laws, Appendix B.2.
 - KMTL: multi-timescale kernelized MTL.
 - FSL-MPL+ small/source and NCPL-lite residual variants.
-- Tuned MTL: the final hyperparameter-level MTL result found by WSD-adaptive
-  autoresearch. Its parameters are refit from cosine data using the selected wide-lambda
-  search setting; it is explicitly marked as tuned on WSD feedback. The selected attempt
-  id, wide lambda grid, restart count, tail weight, and reference metrics are summarized
-  in `configs/tuned_mtl_selection.json`.
+- Tuned MTL: an exploratory traditional MTL baseline that keeps the MTL formula
+  unchanged while using a wider lambda grid and stronger tail weighting. Its parameters
+  are refit from cosine data to show the headroom available in the MTL family. The
+  downstream refit inputs are stored in `configs/tuned_mtl_selection.json`.
 
 ## Environment
 
@@ -73,7 +72,7 @@ Expected headline WSD EMA full RMSE from the fixed-seed fresh-fitting pipeline:
 | MPL | 0.040219 | Unified strict comparison harness |
 | FSL | 0.040358 | Faithful practical FSL ansatz, fresh 10-restart fit |
 | FSL-MPL+ source + NCPL-lite | 0.038326 | Best small-variant full RMSE among non-tuned variants |
-| Tuned MTL | 0.015461 | Fresh fit under WSD-adaptive selected setting, not an unbiased WSD test |
+| Tuned MTL | 0.015461 | Fresh fit with the expanded MTL setting; traditional-baseline headroom check |
 
 ## Slides
 

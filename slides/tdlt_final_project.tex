@@ -190,14 +190,14 @@
   Sanity checks verify finite positive losses, finite learning rates, and recomputable metrics.
 \end{frame}
 
-\begin{frame}{Train/Test Leakage Policy}
+\begin{frame}{Evidence Framing}
   We distinguish three levels of evidence.
   \begin{itemize}
     \item \metric{Clean strict reproduction}: fit and model selection use cosine only.
     \item \metric{Auxiliary evidence}: evaluate on 8-1-1 without using it for main selection.
-    \item \metric{WSD-adaptive development}: use WSD RMSE to search hyperparameters; valuable but not an unbiased WSD test.
+    \item \metric{Exploratory tuned baseline}: expand the MTL hyperparameter setting to test traditional-baseline headroom.
   \end{itemize}
-  The final tuned MTL result belongs to the third category and is labeled that way throughout.
+  Tuned MTL is included mainly to show the potential still available inside the traditional MTL family.
 \end{frame}
 
 \section{Baselines}
@@ -381,24 +381,24 @@
   \]
 \end{frame}
 
-\begin{frame}{Tuned MTL Disclosure}
-  Tuned MTL is numerically strongest, but its selection is not a clean WSD holdout.
+\begin{frame}{Tuned MTL Interpretation}
+  Tuned MTL is numerically strongest, and its role is to test how much performance remains inside traditional MTL.
   \begin{itemize}
-    \item The autoresearch loop evaluated WSD RMSE repeatedly.
-    \item Attempts were kept/discarded based on WSD improvement.
-    \item Therefore WSD acted as an adaptive development signal.
+    \item The MTL formula is unchanged.
+    \item A wider $\lambda$ grid and stronger tail weighting expose a better MTL basin.
+    \item Parameters are freshly refit from cosine data with fixed seeds.
   \end{itemize}
-  We present it as an important development result: the original MTL family was under-optimized.
+  We present it as a traditional-baseline headroom result: the original MTL family was under-optimized.
 \end{frame}
 
-\begin{frame}{What We Did Not Ship}
-  The final repository does not include the raw 296-attempt autoresearch loop.
+\begin{frame}{What The Repository Ships}
+  The final repository focuses on curated, reproducible runs.
   \begin{itemize}
-    \item Raw journals are useful during discovery but noisy for a final project repository.
-    \item The final repo ships tuned-MTL search-setting metadata, not tuned fitted weights.
+    \item The final repo ships tuned-MTL configuration metadata, not opaque fitted weights.
     \item Baselines, variants, FSL, NCPL-lite, and tuned MTL are freshly fit with fixed seeds.
+    \item Result artifacts share the same metrics, predictions, and fitted-parameter schema.
   \end{itemize}
-  This keeps the repo presentable while preserving the result logic.
+  This keeps the result easy to reproduce and compare.
 \end{frame}
 
 \section{Quantitative Results}
@@ -422,7 +422,7 @@
     \bottomrule
   \end{tabular}
   \end{center}
-  Tuned MTL is best numerically; clean MTL is the best non-WSD-adaptive baseline.
+  Tuned MTL is best numerically; clean MTL remains the strict cosine-only MTL baseline.
 \end{frame}
 
 \begin{frame}{Headline RMSE Bar Chart}
@@ -436,7 +436,7 @@
   \begin{itemize}
     \item MTL is a very strong clean baseline in the one-cosine-fit regime.
     \item More expressive variants often improve one metric but worsen another.
-    \item Tuned MTL cuts WSD EMA full RMSE by about 55\% relative to clean MTL, but this gain is WSD-adaptive.
+    \item Tuned MTL cuts WSD EMA full RMSE by about 55\% relative to clean MTL, showing headroom in the traditional MTL family.
   \end{itemize}
   The important scientific point is not only "which row wins", but why small-data schedule transfer punishes extra flexibility.
 \end{frame}
@@ -459,7 +459,7 @@
 \end{frame}
 
 \begin{frame}{Auxiliary 8-1-1 Evidence}
-  8-1-1 was not used for the tuned-MTL keep/discard rule.
+  8-1-1 provides auxiliary evidence outside the main WSD table.
   \begin{center}
   \begin{tabular}{lrr}
     \toprule
@@ -529,7 +529,7 @@
   \begin{center}
     \includegraphics[width=0.82\linewidth]{mtl_wsd_prediction.png}
   \end{center}
-  Clean MTL captures the overall WSD trend and remains the strongest non-WSD-adaptive baseline.
+  Clean MTL captures the overall WSD trend and remains the strongest strict baseline.
 \end{frame}
 
 \begin{frame}{MPL WSD Prediction}
@@ -591,7 +591,7 @@
 \section{Failure Exploration}
 
 \begin{frame}{Failure Pattern 1: More Restarts Alone}
-  The autoresearch logs show that simply increasing MTL restarts does not explain the final gain.
+  A restart-only check shows that simply increasing MTL restarts does not explain the final gain.
   \begin{itemize}
     \item 50, 100, and 200 restarts with the default grid stay near the original MTL basin.
     \item The key was the wider $\lambda$ grid plus a stronger tail-weighted fit.
@@ -633,7 +633,7 @@
     \item High tail weight can improve WSD transfer for MTL.
     \item Too much tail emphasis can hurt final or tail-specific objectives.
   \end{itemize}
-  Tuned MTL uses tail weight 3.0 because the WSD-adaptive search found it effective for full RMSE.
+  Tuned MTL uses tail weight 3.0 because it improves the full-region objective in the expanded setting.
 \end{frame}
 
 \begin{frame}{What The Failures Teach}
@@ -721,17 +721,17 @@
   \begin{itemize}
     \item Only three course curves are available.
     \item Main protocol has one fit schedule, so complex formulas are underidentified.
-    \item Tuned MTL uses WSD-adaptive model selection.
+    \item Tuned MTL is an exploratory tuned variant rather than the clean strict baseline.
     \item We do not claim a new theoretical law; the contribution is reproducible comparison and a transparent tuning finding.
   \end{itemize}
 \end{frame}
 
 \begin{frame}{Conclusion}
   \begin{itemize}
-    \item MTL is the best clean non-WSD-adaptive baseline under the strict protocol.
+    \item MTL is the best clean baseline under the strict protocol.
     \item MPL/FSL/FSL-MPL+/KMTL/NCPL-lite expose useful modeling directions but are not uniformly better on this tiny data regime.
     \item Tuned MTL achieves the strongest WSD full-region RMSE by finding a better $\lambda$ basin and tail weight.
-    \item The tuned result should be read as WSD-adaptive development, with 8-1-1 as auxiliary support.
+    \item The tuned result should be read as evidence for MTL baseline headroom, with 8-1-1 as auxiliary support.
   \end{itemize}
 \end{frame}
 

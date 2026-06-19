@@ -2,18 +2,36 @@
   "models": [
     {
       "base_method": "MTL",
-      "disclosure": "Pinned model replay; WSD was used adaptively for hyperparameter/model selection.",
+      "disclosure": "Parameters are refit from cosine data; the hyperparameter setting was selected through WSD-adaptive autoresearch.",
       "fit_target": "EMA loss",
       "lambda": 0.9997,
-      "method": "Tuned MTL",
-      "objective": 0.00011095145309824642,
-      "params": [
-        2.7284210564756814,
-        774.0970766973335,
-        4.931754302546564e-05,
-        0.93426651623693
+      "lambda_grid": [
+        0.9,
+        0.95,
+        0.97,
+        0.99,
+        0.993,
+        0.995,
+        0.997,
+        0.999,
+        0.9993,
+        0.9995,
+        0.9997,
+        0.9999,
+        0.99995
       ],
-      "selection_signal": "WSD-adaptive autoresearch keep/discard loop"
+      "method": "Tuned MTL",
+      "n_restarts": 50,
+      "objective": 0.00011094228755456682,
+      "params": [
+        2.728578641999479,
+        774.0970767385616,
+        4.936385790958942e-05,
+        0.934287630929157
+      ],
+      "seed": 20264586,
+      "selection_signal": "fresh cosine fit using WSD-adaptively selected tuned-MTL search setting",
+      "tail_weight": 3.0
     }
   ]
 }

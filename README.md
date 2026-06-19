@@ -26,10 +26,11 @@ The repository exposes:
 - FSL: faithful practical ansatz from Functional Scaling Laws, Appendix B.2.
 - KMTL: multi-timescale kernelized MTL.
 - FSL-MPL+ small/source and NCPL-lite residual variants.
-- Tuned MTL: the pinned final hyperparameter-level MTL result found by WSD-adaptive
-  autoresearch. It is replayed from stored parameters and explicitly marked as tuned on
-  WSD feedback. Its selected attempt id, wide lambda grid, restart count, tail weight,
-  and replay metrics are summarized in `configs/tuned_mtl_selection.json`.
+- Tuned MTL: the final hyperparameter-level MTL result found by WSD-adaptive
+  autoresearch. Its parameters are refit from cosine data using the selected wide-lambda
+  search setting; it is explicitly marked as tuned on WSD feedback. The selected attempt
+  id, wide lambda grid, restart count, tail weight, and reference metrics are summarized
+  in `configs/tuned_mtl_selection.json`.
 
 ## Environment
 
@@ -60,15 +61,19 @@ conda run -n tdlt python scripts/run_variants.py --out-dir results/variants
 conda run -n tdlt python scripts/run_tuned_mtl.py --out-dir results/tuned_mtl
 ```
 
-Expected headline WSD EMA full RMSE:
+By default, the fresh-fitting pipeline uses fixed seeds, 20 restarts for MTL/MPL/variants,
+10 restarts for faithful FSL, and 50 restarts over the selected wide lambda grid for tuned
+MTL.
+
+Expected headline WSD EMA full RMSE from the fixed-seed fresh-fitting pipeline:
 
 | Method | RMSE | Notes |
 | --- | ---: | --- |
 | MTL | 0.034569 | Clean strict baseline |
 | MPL | 0.044320 | Unified strict comparison harness |
-| FSL | 0.039647 | Faithful practical FSL ansatz |
-| FSL-MPL+ source + NCPL-lite | 0.036702 | Best small-variant full RMSE among non-tuned variants |
-| Tuned MTL | 0.015404 | WSD-adaptive tuned result, not an unbiased WSD test |
+| FSL | 0.041419 | Faithful practical FSL ansatz, fresh 10-restart fit |
+| FSL-MPL+ source + NCPL-lite | 0.039506 | Best small-variant full RMSE among non-tuned variants |
+| Tuned MTL | 0.015464 | Fresh fit under WSD-adaptive selected setting, not an unbiased WSD test |
 
 ## Slides
 

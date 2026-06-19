@@ -278,13 +278,13 @@
 \end{frame}
 
 \begin{frame}{FSL Reproduction Policy}
-  Faithful FSL is replayed from the audited reproduction parameters.
+  Faithful FSL is freshly fit from the audited reproduction formula.
   \begin{itemize}
-    \item The code still contains the FSL fitter.
-    \item The default final table uses pinned parameters to avoid local optimizer drift.
+    \item The code contains the FSL fitter and runs it by default.
+    \item The final table uses a fixed-seed 10-restart fit to control local optimizer drift.
     \item The fitted model uses cosine only; WSD loss is used only for evaluation.
   \end{itemize}
-  This keeps the final result stable while preserving the formula implementation.
+  This keeps the result generated from code while preserving the formula implementation.
 \end{frame}
 
 \begin{frame}{Unified Baseline Outputs}
@@ -395,8 +395,8 @@
   The final repository does not include the raw 296-attempt autoresearch loop.
   \begin{itemize}
     \item Raw journals are useful during discovery but noisy for a final project repository.
-    \item The final repo ships the pinned tuned model and its disclosure note.
-    \item Variant fitted parameters are pinned from audited artifacts for stable reproduction.
+    \item The final repo ships tuned-MTL search-setting metadata, not tuned fitted weights.
+    \item Baselines, variants, FSL, NCPL-lite, and tuned MTL are freshly fit with fixed seeds.
   \end{itemize}
   This keeps the repo presentable while preserving the result logic.
 \end{frame}
@@ -410,15 +410,15 @@
     \toprule
     Method & RMSE & MAE & $R^2$ & FinalE \\
     \midrule
-    Tuned MTL & 0.015404 & 0.010003 & 0.992781 & 0.016700 \\
+    Tuned MTL & 0.015464 & 0.010070 & 0.992725 & 0.016748 \\
     MTL & 0.034569 & 0.028816 & 0.963640 & 0.004317 \\
-    FSL-MPL+ source + NCPL-lite & 0.036702 & 0.024832 & 0.959015 & 0.083302 \\
-    FSL & 0.039647 & 0.035021 & 0.952175 & 0.045095 \\
-    FSL-MPL+ source & 0.040041 & 0.028491 & 0.951218 & 0.029014 \\
-    FSL-MPL+ small & 0.041597 & 0.027561 & 0.947355 & 0.013703 \\
+    FSL-MPL+ source + NCPL-lite & 0.039506 & 0.026993 & 0.952515 & 0.087832 \\
+    FSL-MPL+ source & 0.040752 & 0.027915 & 0.949470 & 0.033454 \\
+    FSL & 0.041419 & 0.034280 & 0.947804 & 0.075924 \\
     MPL & 0.044320 & 0.025409 & 0.940236 & 0.039933 \\
-    KMTL-m3 & 0.048775 & 0.035005 & 0.927618 & 0.009808 \\
-    KMTL-m2 & 0.161979 & 0.139861 & 0.201713 & 0.101290 \\
+    KMTL-m3 & 0.044361 & 0.035384 & 0.940124 & 0.064162 \\
+    FSL-MPL+ small & 0.050309 & 0.037628 & 0.922992 & 0.011666 \\
+    KMTL-m2 & 0.102856 & 0.090321 & 0.678114 & 0.050873 \\
     \bottomrule
   \end{tabular}
   \end{center}
@@ -447,11 +447,11 @@
     \toprule
     Metric & Clean MTL & Tuned MTL & Change \\
     \midrule
-    WSD EMA full RMSE & 0.034569 & 0.015404 & -55.4\% \\
-    WSD EMA full MAE & 0.028816 & 0.010003 & -65.3\% \\
-    WSD EMA full MAPE & 0.010213 & 0.003567 & -65.1\% \\
-    WSD FinalE & 0.004317 & 0.016700 & worse \\
-    WSD WorstE & 0.063370 & 0.082254 & worse \\
+    WSD EMA full RMSE & 0.034569 & 0.015464 & -55.3\% \\
+    WSD EMA full MAE & 0.028816 & 0.010070 & -65.1\% \\
+    WSD EMA full MAPE & 0.010213 & 0.003591 & -64.8\% \\
+    WSD FinalE & 0.004317 & 0.016748 & worse \\
+    WSD WorstE & 0.063370 & 0.082274 & worse \\
     \bottomrule
   \end{tabular}
   \end{center}
@@ -465,10 +465,10 @@
     \toprule
     Method & 8-1-1 EMA full RMSE & Interpretation \\
     \midrule
-    Tuned MTL & 0.013581 & strong auxiliary transfer \\
+    Tuned MTL & 0.013598 & strong auxiliary transfer \\
     MTL & 0.030190 & clean baseline \\
-    FSL-MPL+ source + NCPL-lite & 0.035578 & lower MAE, worse final \\
-    MPL & 0.045920 & weaker transfer \\
+    FSL-MPL+ source + NCPL-lite & 0.037287 & lower MAE, worse final \\
+    MPL & 0.045884 & weaker transfer \\
     \bottomrule
   \end{tabular}
   \end{center}
@@ -709,7 +709,7 @@
   \begin{itemize}
     \item scaffold and provenance;
     \item reusable package and CLIs;
-    \item pinned audited replay configs;
+    \item tuned-selection metadata and fixed-seed fresh-fit configs;
     \item regenerated results;
     \item Beamer slides and rendered QA;
     \item final documentation polish.

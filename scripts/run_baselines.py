@@ -16,13 +16,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--data-root", default=str(ROOT / "data" / "loss_curves"))
     parser.add_argument("--out-dir", default=str(ROOT / "results" / "baselines"))
     parser.add_argument("--n-restarts", type=int, default=20)
+    parser.add_argument("--fsl-restarts", type=int, default=10)
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
     cfg = ProtocolConfig(n_restarts=args.n_restarts)
-    metrics, _ = run_baselines(args.data_root, args.out_dir, cfg)
+    metrics, _ = run_baselines(args.data_root, args.out_dir, cfg, fsl_restarts=args.fsl_restarts)
     main_rows = metrics[
         (metrics["schedule"] == "wsd")
         & (metrics["target"] == "ema")

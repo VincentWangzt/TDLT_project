@@ -17,8 +17,9 @@ This document records how the source pile was distilled into this clean reposito
 - `DL-project/Reproduction/FSL/tdlt_task2_fsl_repro_20260614_050854`
   is the faithful practical FSL reproduction based on Appendix B.2 Eq. (30).
 - `DL-project/Improvement/autoresearch/loss-curve-20260608`
-  contains the autoresearch trace. This final repo keeps only the pinned winning MTL
-  parameter JSON and metrics, not the raw 296-attempt search loop.
+  contains the autoresearch trace. This final repo keeps only curated metadata for the
+  selected tuned-MTL search setting, not loadable winning parameters or the raw
+  296-attempt search loop.
 
 ## Final Selection Rules
 
@@ -27,6 +28,7 @@ This document records how the source pile was distilled into this clean reposito
   and enough provenance to explain where each method came from.
 - Do not ship raw search journals or generated LaTeX build artifacts.
 - Mark tuned MTL as WSD-adaptive model selection, while using 8-1-1 as auxiliary evidence.
+- Generate all submitted fitted parameters from the repo's fitting logic with fixed seeds.
 
 ## Course Data
 

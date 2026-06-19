@@ -8,6 +8,7 @@
   "eps_T": 1.0,
   "tail_weight": 2.0,
   "n_restarts": 20,
+  "fsl_restarts": 10,
   "seed": 20260527,
   "fit_schedule": "cosine",
   "test_schedule": "wsd",

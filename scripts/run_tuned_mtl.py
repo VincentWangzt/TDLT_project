@@ -12,7 +12,7 @@ from tdlt_losscurves.protocols import ProtocolConfig
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Replay the pinned tuned MTL model.")
+    parser = argparse.ArgumentParser(description="Freshly fit tuned MTL using the selected autoresearch setting.")
     parser.add_argument("--data-root", default=str(ROOT / "data" / "loss_curves"))
     parser.add_argument("--out-dir", default=str(ROOT / "results" / "tuned_mtl"))
     parser.add_argument("--config-dir", default=str(ROOT / "configs"))
@@ -29,7 +29,7 @@ def main() -> int:
         & (metrics["region"] == "full")
     ][["method", "rmse", "mae", "r2", "finale"]].sort_values("rmse")
     print(main_rows.to_string(index=False))
-    print("\nDisclosure: tuned MTL was selected through WSD-adaptive autoresearch; replay is pinned-parameter evaluation.")
+    print("\nDisclosure: tuned MTL parameters are refit from cosine data; the search setting was selected through WSD-adaptive autoresearch.")
     return 0
 
 

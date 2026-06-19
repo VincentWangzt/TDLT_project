@@ -18,6 +18,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Regenerate all curated results.")
     parser.add_argument("--out-dir", default=str(ROOT / "results"))
     parser.add_argument("--n-restarts", type=int, default=20)
+    parser.add_argument("--fsl-restarts", type=int, default=10)
     return parser.parse_args()
 
 
@@ -29,7 +30,16 @@ def run(cmd: list[str]) -> None:
 def main() -> int:
     args = parse_args()
     out = ensure_dir(args.out_dir)
-    run([sys.executable, "scripts/run_baselines.py", "--out-dir", str(out / "baselines"), "--n-restarts", str(args.n_restarts)])
+    run([
+        sys.executable,
+        "scripts/run_baselines.py",
+        "--out-dir",
+        str(out / "baselines"),
+        "--n-restarts",
+        str(args.n_restarts),
+        "--fsl-restarts",
+        str(args.fsl_restarts),
+    ])
     run([sys.executable, "scripts/run_variants.py", "--out-dir", str(out / "variants"), "--n-restarts", str(args.n_restarts)])
     run([sys.executable, "scripts/run_tuned_mtl.py", "--out-dir", str(out / "tuned_mtl")])
 

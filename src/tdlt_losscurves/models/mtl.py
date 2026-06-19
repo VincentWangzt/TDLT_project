@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 import numpy as np
 from scipy.optimize import minimize
 
 from ..data import Curve
 from ..protocols import weights_for
-from ..utils import read_json
 from .common import EPS, init_common, positive_log_objective
 
 
@@ -88,17 +85,3 @@ def fit_mtl(
                 }
     assert best is not None
     return best, restart_rows
-
-
-def tuned_mtl_model(config_dir: str | Path) -> dict:
-    model = read_json(Path(config_dir) / "tuned_mtl_best_model.json")
-    return {
-        "method": "Tuned MTL",
-        "base_method": model["method"],
-        "lambda": float(model["lambda"]),
-        "params": [float(x) for x in model["params"]],
-        "objective": float(model["objective"]),
-        "fit_target": "EMA loss",
-        "selection_signal": "WSD-adaptive autoresearch keep/discard loop",
-        "disclosure": "Pinned model replay; WSD was used adaptively for hyperparameter/model selection.",
-    }

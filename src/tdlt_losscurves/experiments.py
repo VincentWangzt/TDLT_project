@@ -10,7 +10,7 @@ from .metrics import evaluate_regions, prediction_rows
 from .models.fsl import fsl_fit_indices, fsl_sanity_checks, fit_fsl_model, predict_fsl_model
 from .models.kmtl import fit_kmtl, predict_kmtl
 from .models.mpl_like import fit_mpl_like, fit_ncpl_lite, predict_mpl_like, predict_ncpl_lite
-from .models.mtl import fit_mtl, predict_mtl, tuned_mtl_model
+from .models.mtl import WIDE_LAMBDA_GRID, fit_mtl, predict_mtl
 from .plotting import plot_error_comparison, plot_loss_curves, plot_lr_schedules, plot_prediction, plot_wsd_rmse_bar
 from .protocols import ProtocolConfig, strict_indices
 from .utils import ensure_dir, read_json, write_json
@@ -77,7 +77,12 @@ def write_result_bundle(
         plot_prediction(predictions, method, "cosine", fig_dir / f"{safe}_cosine_fit.png", f"{method}: cosine fit")
 
 
-def run_baselines(data_root: str | Path, out_dir: str | Path, cfg: ProtocolConfig) -> tuple[pd.DataFrame, pd.DataFrame]:
+def run_baselines(
+    data_root: str | Path,
+    out_dir: str | Path,
+    cfg: ProtocolConfig,
+    fsl_restarts: int = 10,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     curves = load_curves(data_root, ema_span=cfg.ema_span, eps_T=cfg.eps_T, lr_scale="max")
     fit_idx, eval_idx = strict_indices(curves, cfg)
     train = [curves[cfg.fit_schedule]]
@@ -86,23 +91,14 @@ def run_baselines(data_root: str | Path, out_dir: str | Path, cfg: ProtocolConfi
     mpl, mpl_restarts = fit_mpl_like("MPL", train, fit_idx, cfg.tail_weight, cfg.n_restarts, cfg.seed + 101, cfg.source_stride)
 
     fsl_curves = load_curves(data_root, ema_span=cfg.ema_span, eps_T=1.0e-8, lr_scale="raw")
-    fsl_pin = Path(data_root).resolve().parents[1] / "configs" / "fsl_faithful_fitted_params.json"
-    if fsl_pin.exists():
-        payload = read_json(fsl_pin)
-        best = payload["best"]
-        fsl = {
-            "method": "FSL",
-            "params": best["params"],
-            "objective": best["objective"],
-            "source_stride": payload["source_features"]["source_stride"],
-            "huber_delta": payload["huber_delta"],
-            "fit_target": payload["target"],
-            "selection_signal": "pinned faithful FSL reproduction parameters",
-        }
-        fsl_restarts: list[dict] = []
-    else:
-        fsl_fit = fsl_fit_indices(fsl_curves[cfg.fit_schedule])
-        fsl, fsl_restarts = fit_fsl_model(fsl_curves[cfg.fit_schedule], fsl_fit, n_restarts=cfg.n_restarts, seed=20260614, source_stride=50)
+    fsl_fit = fsl_fit_indices(fsl_curves[cfg.fit_schedule])
+    fsl, fsl_restarts = fit_fsl_model(
+        fsl_curves[cfg.fit_schedule],
+        fsl_fit,
+        n_restarts=fsl_restarts,
+        seed=20260614,
+        source_stride=50,
+    )
     fsl_eval_idx = {
         name: eval_idx[name]
         for name in eval_idx
@@ -126,24 +122,6 @@ def run_variants(data_root: str | Path, out_dir: str | Path, cfg: ProtocolConfig
 
     models: list[dict] = []
     restart_frames: list[pd.DataFrame] = []
-    variant_pin = Path(data_root).resolve().parents[1] / "configs" / "variant_fitted_params.json"
-    if variant_pin.exists():
-        pinned = read_json(variant_pin)
-        for key in [
-            "strict:KMTL-m2",
-            "strict:KMTL-m3",
-            "strict:FSL-MPL+ small",
-            "strict:FSL-MPL+ source",
-            "strict:FSL-MPL+ source + NCPL-lite",
-        ]:
-            model = pinned[key]
-            model["fit_target"] = model.get("fit_target", "EMA loss")
-            model["selection_signal"] = "pinned audited strict variant reproduction parameters"
-            models.append(model)
-        metrics, predictions = evaluate_models(curves, eval_idx, models, cfg)
-        manifest = build_manifest(curves, cfg.fit_schedule, cfg.test_schedule)
-        write_result_bundle(out_dir, metrics, predictions, models, None, manifest, curves)
-        return metrics, predictions
 
     for offset, (name, fit_fn) in enumerate(
         [
@@ -173,9 +151,37 @@ def run_variants(data_root: str | Path, out_dir: str | Path, cfg: ProtocolConfig
 
 def run_tuned_mtl(data_root: str | Path, out_dir: str | Path, cfg: ProtocolConfig, config_dir: str | Path) -> tuple[pd.DataFrame, pd.DataFrame]:
     curves = load_curves(data_root, ema_span=cfg.ema_span, eps_T=cfg.eps_T, lr_scale="max")
-    _, eval_idx = strict_indices(curves, cfg)
-    model = tuned_mtl_model(config_dir)
+    fit_idx, eval_idx = strict_indices(curves, cfg)
+    train = [curves[cfg.fit_schedule]]
+    selection_path = Path(config_dir) / "tuned_mtl_selection.json"
+    if selection_path.exists():
+        selection = read_json(selection_path)
+        setting = selection["search_setting"]
+        tail_weight = float(setting["tail_weight"])
+        n_restarts = int(setting["n_restarts"])
+        seed = int(setting["attempt_seed"])
+        lambda_grid = [float(x) for x in setting["lambda_grid"]]
+        selection_signal = "fresh cosine fit using WSD-adaptively selected tuned-MTL search setting"
+    else:
+        tail_weight = 3.0
+        n_restarts = 50
+        seed = 20264586
+        lambda_grid = WIDE_LAMBDA_GRID
+        selection_signal = "fresh cosine fit using built-in tuned-MTL search setting fallback"
+    model, restart_rows = fit_mtl(train, fit_idx, tail_weight, n_restarts, seed, lambda_grid=lambda_grid)
+    model = {
+        **model,
+        "method": "Tuned MTL",
+        "base_method": "MTL",
+        "tail_weight": tail_weight,
+        "n_restarts": n_restarts,
+        "seed": seed,
+        "lambda_grid": lambda_grid,
+        "selection_signal": selection_signal,
+        "disclosure": "Parameters are refit from cosine data; the hyperparameter setting was selected through WSD-adaptive autoresearch.",
+    }
     metrics, predictions = evaluate_models(curves, eval_idx, [model], cfg)
     manifest = build_manifest(curves, cfg.fit_schedule, cfg.test_schedule)
-    write_result_bundle(out_dir, metrics, predictions, [model], None, manifest, curves)
+    restarts = pd.DataFrame(restart_rows)
+    write_result_bundle(out_dir, metrics, predictions, [model], restarts, manifest, curves)
     return metrics, predictions

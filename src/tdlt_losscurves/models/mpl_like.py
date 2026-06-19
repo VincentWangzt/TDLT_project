@@ -38,8 +38,9 @@ def response_sum(
     if len(d) == 0:
         return np.zeros(len(idx), dtype=float)
     Tt = curve.T[idx][:, None]
-    gap = np.maximum(Tt - T_s[None, :], 0.0)
-    mask = gap > 0
+    raw_gap = Tt - T_s[None, :]
+    mask = raw_gap >= 0.0
+    gap = np.where(mask, raw_gap, 0.0)
     if kind == "mpl":
         gap = gap + eta_s[None, :]
         x = np.maximum(eta_s[None, :], 1.0e-6) ** (-nonlin["gamma"]) * gap

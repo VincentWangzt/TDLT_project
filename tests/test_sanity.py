@@ -7,6 +7,7 @@ from tdlt_losscurves.data import Curve
 from tdlt_losscurves.metrics import recompute_rmse_from_predictions
 from tdlt_losscurves.models.fsl import fsl_sanity_checks
 from tdlt_losscurves.models.kmtl import predict_kmtl
+from tdlt_losscurves.models.mpl_like import response_sum
 from tdlt_losscurves.models.mtl import mtl_memory, predict_mtl
 
 
@@ -49,6 +50,26 @@ def test_fsl_zero_decay_response_and_monotonicity() -> None:
     assert checks["zero_decay_response_matches_signal"]
     assert checks["response_monotone"]
     assert checks["all_passed"]
+
+
+def test_mpl_response_includes_same_step_decay_source() -> None:
+    curve = make_curve(np.array([1.0, 0.5, 0.5]))
+    nonlin = {"C": 2.0, "beta": 0.7, "gamma": 0.4}
+    got = response_sum(curve, np.array([0, 1, 2]), "mpl", nonlin, source_stride=1)
+
+    expected = []
+    for t in [0, 1, 2]:
+        total = 0.0
+        for k in range(1, t + 1):
+            d = max(float(curve.eta[k - 1] - curve.eta[k]), 0.0)
+            S_k_t = float(np.sum(curve.eta[k : t + 1]))
+            x = float(curve.eta[k] ** (-nonlin["gamma"]) * S_k_t)
+            total += d * (1.0 - (1.0 + nonlin["C"] * x) ** (-nonlin["beta"]))
+        expected.append(total)
+
+    assert got[0] == 0.0
+    assert got[1] > 0.0
+    assert np.allclose(got, np.asarray(expected))
 
 
 def test_metrics_recompute_from_predictions() -> None:

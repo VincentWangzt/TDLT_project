@@ -238,8 +238,8 @@
     \widehat L(t)
       =
       L_0 + A T_t^{-\alpha}
-      - B\sum_{i<t}\Delta_i^+
-      \left[1+\left(C\,\eta_i^{-\gamma}(T_t-T_i+\eta_i)\right)\right]^{-\beta}.
+      - B\sum_{i\le t}\Delta_i^+
+      \left[1-\left(1+C\,\eta_i^{-\gamma}(T_t-T_i+\eta_i)\right)^{-\beta}\right].
   \]
   Here $\Delta_i^+=\max(\eta_{i-1}-\eta_i,0)$ extracts positive LR decay sources.
 \end{frame}
@@ -410,13 +410,13 @@
     \toprule
     Method & RMSE & MAE & $R^2$ & FinalE \\
     \midrule
-    Tuned MTL & 0.015464 & 0.010070 & 0.992725 & 0.016748 \\
+    Tuned MTL & 0.015461 & 0.010069 & 0.992727 & 0.016741 \\
     MTL & 0.034569 & 0.028816 & 0.963640 & 0.004317 \\
-    FSL-MPL+ source + NCPL-lite & 0.039506 & 0.026993 & 0.952515 & 0.087832 \\
-    FSL-MPL+ source & 0.040752 & 0.027915 & 0.949470 & 0.033454 \\
-    FSL & 0.041419 & 0.034280 & 0.947804 & 0.075924 \\
-    MPL & 0.044320 & 0.025409 & 0.940236 & 0.039933 \\
-    KMTL-m3 & 0.044361 & 0.035384 & 0.940124 & 0.064162 \\
+    FSL-MPL+ source + NCPL-lite & 0.038326 & 0.027214 & 0.955309 & 0.081484 \\
+    FSL-MPL+ source & 0.038635 & 0.026214 & 0.954584 & 0.027232 \\
+    MPL & 0.040219 & 0.031148 & 0.950783 & 0.029069 \\
+    FSL & 0.040358 & 0.035311 & 0.950443 & 0.053288 \\
+    KMTL-m3 & 0.044395 & 0.035417 & 0.940033 & 0.064200 \\
     FSL-MPL+ small & 0.050309 & 0.037628 & 0.922992 & 0.011666 \\
     KMTL-m2 & 0.102856 & 0.090321 & 0.678114 & 0.050873 \\
     \bottomrule
@@ -447,7 +447,7 @@
     \toprule
     Metric & Clean MTL & Tuned MTL & Change \\
     \midrule
-    WSD EMA full RMSE & 0.034569 & 0.015464 & -55.3\% \\
+    WSD EMA full RMSE & 0.034569 & 0.015461 & -55.3\% \\
     WSD EMA full MAE & 0.028816 & 0.010070 & -65.1\% \\
     WSD EMA full MAPE & 0.010213 & 0.003591 & -64.8\% \\
     WSD FinalE & 0.004317 & 0.016748 & worse \\
@@ -465,10 +465,10 @@
     \toprule
     Method & 8-1-1 EMA full RMSE & Interpretation \\
     \midrule
-    Tuned MTL & 0.013598 & strong auxiliary transfer \\
+    Tuned MTL & 0.013594 & strong auxiliary transfer \\
     MTL & 0.030190 & clean baseline \\
-    FSL-MPL+ source + NCPL-lite & 0.037287 & lower MAE, worse final \\
-    MPL & 0.045884 & weaker transfer \\
+    FSL-MPL+ source + NCPL-lite & 0.035313 & lower MAE, worse final \\
+    MPL & 0.041732 & weaker transfer \\
     \bottomrule
   \end{tabular}
   \end{center}
@@ -503,10 +503,10 @@
     Method & WSD EMA WorstE \\
     \midrule
     MTL & 0.063370 \\
-    Tuned MTL & 0.082254 \\
-    FSL & 0.065072 \\
-    NCPL-lite & 0.279866 \\
-    MPL & 0.430756 \\
+    Tuned MTL & 0.082189 \\
+    FSL & 0.069316 \\
+    NCPL-lite & 0.286106 \\
+    MPL & 0.313013 \\
     \bottomrule
   \end{tabular}
   \end{center}

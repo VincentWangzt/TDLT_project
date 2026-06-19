@@ -2,7 +2,7 @@
 
 The tuned MTL result is the strongest numerical WSD result in the freshly fitted repo:
 
-- WSD EMA full RMSE: `0.015463520055680687`
+- WSD EMA full RMSE: `0.0154607728601572`
 - MTL lambda: `0.9997`
 - Tail fitting weight: `3.0`
 - Wider lambda grid than the frozen MTL baseline

@@ -70,10 +70,10 @@ Expected headline WSD EMA full RMSE from the fixed-seed fresh-fitting pipeline:
 | Method | RMSE | Notes |
 | --- | ---: | --- |
 | MTL | 0.034569 | Clean strict baseline |
-| MPL | 0.044320 | Unified strict comparison harness |
-| FSL | 0.041419 | Faithful practical FSL ansatz, fresh 10-restart fit |
-| FSL-MPL+ source + NCPL-lite | 0.039506 | Best small-variant full RMSE among non-tuned variants |
-| Tuned MTL | 0.015464 | Fresh fit under WSD-adaptive selected setting, not an unbiased WSD test |
+| MPL | 0.040219 | Unified strict comparison harness |
+| FSL | 0.040358 | Faithful practical FSL ansatz, fresh 10-restart fit |
+| FSL-MPL+ source + NCPL-lite | 0.038326 | Best small-variant full RMSE among non-tuned variants |
+| Tuned MTL | 0.015461 | Fresh fit under WSD-adaptive selected setting, not an unbiased WSD test |
 
 ## Slides
 

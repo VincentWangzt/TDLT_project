@@ -31,26 +31,25 @@ Adaptations:
 
 ### MPL
 
-`mpl_like.py` is close in shape but does not match the MPL paper exactly.
+`mpl_like.py` now matches the MPL paper's inclusive `S_k(t)` indexing under exact-source settings, after the same-step source fix in `response_sum`.
 
 Matches:
 
 - The parameter tuple and outer structure match: `L0 + A*T^{-alpha} - B*response_sum`.
 - The nonlinear response matches the MPL `G(x)=1-(1+C*x)^(-beta)` form with `x=eta_k^{-gamma}*S_k(t)`.
-- With `source_stride=1`, monotone LR, no warmup offset, and after the first post-drop step, the implemented `gap + eta_s` recovers `S_k(t)`.
+- With `source_stride=1`, monotone LR, and no warmup offset, the implemented active mask plus `gap + eta_s` recovers `S_k(t)`, including `S_k(k)=eta_k`.
 
-Mismatches:
+Remaining adaptations:
 
-- Same-step decay response is omitted. The code computes `mask = gap > 0` before adding `eta_s`, so for `t=k` the LR drop contributes zero. The MPL paper includes `S_k(k)=eta_k`, so this term is generally nonzero.
 - The code uses `delta_pos`, clipping re-warmup/increasing-LR contributions to zero. The paper formula uses signed `(eta_{k-1}-eta_k)` under its non-increasing post-warmup schedule assumption.
 - The default unified protocol uses `source_stride=100`, which compresses sources and is an approximation to the full sum.
 - MTL/MPL baselines use peak-normalized LR and `eps_T=1.0`; the paper formula is written in raw LR sum plus optional warmup sum `SW`.
 
-Synthetic check for the same-step issue:
+Synthetic check for the same-step fix:
 
 ```text
 eta = [1.0, 0.5, 0.5], C=2.0, beta=0.7, gamma=0.4
-code response at t=1: 0.00000000
+code response at t=1: 0.22254478
 paper response at t=1: 0.22254478
 ```
 
@@ -82,5 +81,5 @@ FSL source_stride=2 vs exact source sum: max abs diff 0.09043986901376
 ## Bottom Line
 
 - MTL: mathematically faithful modulo LR scaling/epsilon and fitting-protocol adaptations.
-- MPL: not exact. The same-step source mask is a real formula mismatch, and default source compression makes it approximate even after fixing indexing.
+- MPL: formula-faithful for the inclusive `S_k(t)` response with `source_stride=1`; practical runs still use source compression plus normalized LR/epsilon protocol adaptations.
 - FSL: formula-faithful to Appendix B.2 Eq. (30) with `source_stride=1`; practical runs with source compression are approximations but preserve the intended algebra.

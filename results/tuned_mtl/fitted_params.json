@@ -22,12 +22,12 @@
       ],
       "method": "Tuned MTL",
       "n_restarts": 50,
-      "objective": 0.00011094228755456682,
+      "objective": 0.00011094245119177172,
       "params": [
-        2.728578641999479,
-        774.0970767385616,
-        4.936385790958942e-05,
-        0.934287630929157
+        2.7285672480465637,
+        774.0970767323358,
+        4.936449802745657e-05,
+        0.934276110696283
       ],
       "seed": 20264586,
       "selection_signal": "fresh cosine fit using WSD-adaptively selected tuned-MTL search setting",

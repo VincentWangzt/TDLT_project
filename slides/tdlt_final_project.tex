@@ -5,7 +5,6 @@
 \usepackage{booktabs}
 \usepackage{graphicx}
 \usepackage{array}
-\usepackage{multicol}
 \usepackage{xcolor}
 \usepackage{hyperref}
 \usepackage{PekingU}
@@ -14,806 +13,743 @@
 \setlength{\parindent}{0pt}
 \setbeamertemplate{caption}[numbered]
 
+\definecolor{baselinecolor}{RGB}{127,0,0}
+\definecolor{tunedcolor}{RGB}{184,115,0}
+\definecolor{variantcolor}{RGB}{92,105,117}
+\definecolor{sourcegray}{RGB}{95,95,95}
+
 \title{Predicting LLM Pretraining Loss Curves Across Learning-Rate Schedules}
-\subtitle{TDLT Task 2 Final Project}
-\author{Group members: TODO names, student IDs, graduate/undergraduate status}
+\subtitle{Revisiting the capacity of MTL through a broader parameter search}
+\author{Group members: 黄天域, 王梓桐, 柯怿憬}
 \institute{Peking University}
 \date{June 19, 2026}
 
-\newcommand{\code}[1]{\texttt{\small #1}}
-\newcommand{\metric}[1]{\textbf{#1}}
-\newcommand{\smallgap}{\vspace{0.25em}}
+\newcommand{\best}[1]{\textbf{#1}}
+\newcommand{\second}[1]{\emph{#1}}
+\newcommand{\source}[1]{\vfill{\tiny\color{sourcegray}#1}}
 
 \begin{document}
 
 \begin{frame}
   \titlepage
-  \begin{center}
-    \includegraphics[width=0.11\linewidth]{PKU_logo.png}
-  \end{center}
 \end{frame}
 
-\begin{frame}{Reading Guide}
-  These slides are written as a standalone report.
+\begin{frame}{Roadmap}
+  The presentation follows the scientific argument in four stages.
+  \begin{enumerate}
+    \item We formulate schedule-to-loss prediction and introduce three published baselines: MTL, MPL, and FSL.
+    \item We develop \textbf{Tuned-MTL}, our main contribution, by expanding the memory-scale search and revising the fitting emphasis.
+    \item We evaluate all methods under a common cosine-to-WSD protocol and interpret their prediction curves.
+    \item We summarize several smaller exploratory variants and the broader lessons from the comparison.
+  \end{enumerate}
+\end{frame}
+
+\section{Problem Formulation}
+
+\begin{frame}{Why Predict an Entire Loss Curve?}
+  A full pretraining run is expensive, while schedule decisions must often be made before that run is available.
   \begin{itemize}
-    \item Sections 1--2 define the prediction problem and the course protocol.
-    \item Sections 3--4 describe reproduced baselines and our method-development attempts.
-    \item Sections 5--6 give quantitative results, qualitative curves, and failure analysis.
-    \item The appendix records formulas, reproducibility details, and caveats.
+    \item A loss-curve model estimates training progress under a candidate learning-rate schedule.
+    \item Curve prediction reveals when two schedules begin to diverge, rather than reporting only their final losses.
+    \item A transferable model can support schedule design using a small number of observed training curves.
   \end{itemize}
+  \vspace{0.35em}
+  The central difficulty is historical dependence: the loss at step \(t\) reflects the complete optimization path up to that step.
 \end{frame}
 
-\begin{frame}{Project Requirement}
-  TDLT Task 2 asks us to study loss-curve prediction for LLM pretraining under learning-rate schedules.
-  \begin{itemize}
-    \item Use the provided course loss curves.
-    \item Fit a model on the \metric{cosine} learning-rate schedule.
-    \item Evaluate prediction performance on the \metric{WSD} schedule.
-    \item Reproduce existing approaches and develop/evaluate modified fitting strategies.
-    \item Submit code in a reproducible repository and include the repository link in the slides.
-  \end{itemize}
-  \smallgap
-  Repository link placeholder: \code{TODO: add GitHub URL after upload}.
-\end{frame}
-
-\section{Problem Setup}
-
-\begin{frame}{Why Predict Loss Curves?}
-  Loss-curve prediction tries to answer a practical planning question before paying for a full training run.
-  \begin{itemize}
-    \item If we know a loss curve under one schedule, can we predict another schedule?
-    \item If schedule choice affects extrapolation, scaling-law fits are not only about model/data size.
-    \item Accurate prediction can reduce expensive trial-and-error in pretraining schedule design.
-  \end{itemize}
-  \smallgap
-  The key challenge is that a learning-rate schedule affects the entire optimization history, not only the current step.
-\end{frame}
-
-\begin{frame}{Learning-Rate Schedule As Input}
-  For total training length $T$, define a nonnegative learning-rate vector
+\begin{frame}{Schedule-to-Loss Prediction}
+  For a training horizon \(T\), let
   \[
-    \bm{\eta}=(\eta_1,\eta_2,\ldots,\eta_T)^\top \in \mathbb{R}_{\ge 0}^T .
+    \bm{\eta}=(\eta_1,\eta_2,\ldots,\eta_T)^\top
   \]
-  The pretraining loss at step $t$ is treated as a functional of the schedule prefix:
+  denote the learning-rate schedule. We model the loss at step \(t\) as a functional of the schedule prefix:
   \[
-    L_t = L_{\Theta}(\eta_{\le t}),
+    L_t=L_{\Theta}(\eta_{\leq t}),
     \qquad
-    \eta_{\le t}=(\eta_1,\eta_2,\ldots,\eta_t).
+    \eta_{\leq t}=(\eta_1,\eta_2,\ldots,\eta_t).
   \]
-  We fit $\Theta$ from observed loss curves and use it to predict unseen schedules.
+  The parameters \(\Theta\) are fitted from an observed curve. Transfer requires the same fitted functional to predict a curve produced by a different schedule.
 \end{frame}
 
-\begin{frame}{Course Protocol}
-  The strict main protocol is:
+\begin{frame}{Course Task and Research Question}
+  The main experiment fits each method on the loss curve produced by a cosine schedule and evaluates its prediction on a warmup-stable-decay (WSD) schedule.
   \[
-    \text{fit on cosine LRS} \quad \longrightarrow \quad \text{predict WSD LRS}.
+    \text{cosine curve for fitting}
+    \quad\longrightarrow\quad
+    \text{WSD curve for evaluation}.
   \]
-  \begin{itemize}
-    \item Fit target: EMA-smoothed loss with span 201.
-    \item Evaluation region: post-warmup, implemented as \code{step >= 1000}.
-    \item Evaluation grid: every 20 recorded steps plus the final point.
-    \item Auxiliary schedule: 8-1-1, used only for additional evidence.
-  \end{itemize}
+  A three-stage \(8\)-\(1\)-\(1\) schedule provides a second, auxiliary transfer case.
+  \vspace{0.6em}
+
+  \textbf{Research question.} How much of the observed transfer performance comes from adding model complexity, and how much remains available inside the parameter space of the earliest MTL baseline?
 \end{frame}
 
-\begin{frame}{Main Evaluation Metric}
-  The headline number is WSD full-region RMSE on the EMA target:
-  \[
-    \mathrm{RMSE}
-      =
-      \left(\frac{1}{|I|}
-      \sum_{t\in I}
-      \left(\widehat L_t - L^{\mathrm{EMA}}_t\right)^2
-      \right)^{1/2}.
-  \]
-  We also report:
-  \begin{itemize}
-    \item MAE and MAPE for average absolute error.
-    \item $R^2$ for explained variance.
-    \item FinalE and WorstE for endpoint and worst-case behavior.
-    \item Tail20/decay/final1000 regional errors as diagnostic views.
-  \end{itemize}
-\end{frame}
+\section{Published Baselines}
 
-\begin{frame}{Central Difficulty}
-  The data regime is extremely small.
-  \begin{itemize}
-    \item Only one cosine curve is available for the main fit.
-    \item WSD is the main test curve, but it is tempting to use it during method development.
-    \item 8-1-1 is useful, but it is not part of the official main protocol.
-  \end{itemize}
-  \smallgap
-  This makes overparameterized formulas fragile: a lower cosine fitting loss can easily hurt schedule transfer.
-\end{frame}
-
-\section{Data And Protocol}
-
-\begin{frame}{Course Data}
-  The file \code{data/loss\_curves/gpt\_loss+lrs.pkl} contains three pandas DataFrames.
+\begin{frame}{Three Baseline Perspectives}
+  The three published methods encode schedule history in different ways.
   \begin{center}
-  \begin{tabular}{llrr}
+  \small
+  \begin{tabular}{p{0.16\linewidth}p{0.31\linewidth}p{0.39\linewidth}}
     \toprule
-    Schedule & Role & Points & Approx. max step \\
+    Method & Central object & Intuition \\
     \midrule
-    cosine & main fit & 33907 & 33906 \\
-    WSD & main test & 33907 & 33906 \\
-    8-1-1 & auxiliary unseen & 33908 & 33907 \\
+    MTL & exponentially decaying memory & summarize learning-rate changes with one persistent state \\
+    MPL & a sum of power-law responses & treat each learning-rate decrease as a source with its own delayed effect \\
+    FSL & intrinsic time and convolution & measure progress by accumulated learning rate and convolve past schedule changes \\
     \bottomrule
   \end{tabular}
   \end{center}
-  Required columns are \code{step}, \code{Metrics/loss}, and \code{lr}.
+  These perspectives provide increasingly expressive descriptions of schedule response, with correspondingly different data requirements.
+\end{frame}
+
+\begin{frame}{Baseline 1: Momentum Law (MTL)}
+  MTL models the predicted loss as
+  \[
+    \widehat L_t
+    =
+    L_0 + A T_t^{-\alpha} - C S_2(t),
+    \qquad
+    T_t=\epsilon+\sum_{i\leq t}\eta_i .
+  \]
+  \begin{itemize}
+    \item \(L_0+A T_t^{-\alpha}\) is a power law in accumulated learning rate, which acts as a measure of training progress.
+    \item \(C S_2(t)\) represents the additional loss reduction associated with learning-rate annealing.
+    \item The model uses four continuous parameters and one memory parameter, \(\lambda\).
+  \end{itemize}
+  \source{Tissue, Wang, and Wang, \emph{Scaling Law with Learning Rate Annealing}, arXiv:2408.11029, 2024.}
+\end{frame}
+
+\begin{frame}{MTL Memory and Parameter Meanings}
+  The annealing state obeys
+  \[
+    m_t=\lambda m_{t-1}+(\eta_{t-1}-\eta_t),
+    \qquad
+    S_2(t)=\sum_{i\leq t}m_i .
+  \]
+  A learning-rate decrease creates a positive impulse. The factor \(\lambda\) controls how slowly that impulse fades.
+  \begin{center}
+  \small
+  \begin{tabular}{cl}
+    \toprule
+    Parameter & Interpretation \\
+    \midrule
+    \(L_0\) & asymptotic loss floor \\
+    \(A,\alpha\) & scale and exponent of the progress term \\
+    \(C\) & magnitude of the annealing contribution \\
+    \(\lambda\) & persistence of schedule memory; values near one retain longer history \\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+  \source{Tissue, Wang, and Wang, arXiv:2408.11029, 2024.}
+\end{frame}
+
+\begin{frame}{Baseline 2: Multi-Power Law (MPL)}
+  MPL associates every positive learning-rate decrease
+  \[
+    \Delta_i^+=\max(\eta_{i-1}-\eta_i,0)
+  \]
+  with a delayed power-law response:
+  \[
+  \widehat L_t=L_0+A T_t^{-\alpha}
+  -B\sum_{i\leq t}\Delta_i^+
+  \left[
+    1-\left(1+C\eta_i^{-\gamma}(T_t-T_i+\eta_i)\right)^{-\beta}
+  \right].
+  \]
+  The total schedule effect is the sum of these responses. MPL can therefore represent different effects for the timing and magnitude of multiple decay events.
+  \source{Luo et al., \emph{A Multi-Power Law for Loss Curve Prediction Across Learning Rate Schedules}, arXiv:2503.12811, 2025.}
+\end{frame}
+
+\begin{frame}{How to Read the MPL Parameters}
+  MPL retains the progress term from MTL and adds a flexible response kernel.
+  \begin{itemize}
+    \item \(L_0\), \(A\), and \(\alpha\) describe the loss floor and the power-law improvement with accumulated learning rate.
+    \item \(B\) scales the total benefit assigned to learning-rate decreases.
+    \item \(C\) sets the response timescale, while \(\beta\) controls the response shape.
+    \item \(\gamma\) changes the response according to the learning rate at which a decrease occurs.
+  \end{itemize}
+  \vspace{0.35em}
+  The additional flexibility can distinguish several decay events, although estimating seven coupled parameters from one fitting curve is statistically demanding.
+  \source{Luo et al., arXiv:2503.12811, 2025.}
+\end{frame}
+
+\begin{frame}{Baseline 3: Functional Scaling Laws (FSL)}
+  Functional Scaling Laws define training progress through intrinsic time:
+  \[
+    T(k)=\sum_{i\leq k}\eta_i .
+  \]
+  Two training steps with different learning rates therefore represent different amounts of progress. The practical loss model has the form
+  \[
+    \widehat L_k=L_0+\frac{c_1}{T(k)^s}-\mathrm{LRD}(k),
+  \]
+  where \(\mathrm{LRD}(k)\) is a convolutional response to earlier learning-rate decreases.
+  \source{Li, Chen, Huang, Wang, and Wu, \emph{Functional Scaling Laws in Kernel Regression}, arXiv:2509.19189, 2025.}
+\end{frame}
+
+\begin{frame}{FSL Schedule-Response Kernel}
+  For fixed model and data size, the practical response used in our reproduction is
+  \[
+  \mathrm{LRD}(k)=
+  c_2\sum_{i\leq k}\Delta_i^+
+  \left(c_3+T(i)^{-s}\right)
+  \left[
+    1-\left(1+c_4(T(k)-T(i))\right)^{-\gamma}
+  \right].
+  \]
+  \begin{itemize}
+    \item \(c_1\) and \(s\) determine the progress law.
+    \item \(c_2\) scales the combined schedule response, and \(c_3\) adjusts source strength.
+    \item \(c_4\) and \(\gamma\) control how the effect of each decay event grows with intrinsic-time separation.
+  \end{itemize}
+  \source{Li et al., arXiv:2509.19189, 2025; practical LLM ansatz in Appendix B.2.}
+\end{frame}
+
+\begin{frame}{Baseline Comparison Before Tuning}
+  \begin{center}
+  \small
+  \begin{tabular}{llll}
+    \toprule
+    Method & Schedule memory & Continuous parameters & Main inductive bias \\
+    \midrule
+    MTL & one exponential scale & four, plus \(\lambda\) & persistent state \\
+    MPL & event-wise power response & seven & decay superposition \\
+    FSL & intrinsic-time convolution & seven & convolutional kernel \\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+  MTL is the oldest and lowest-dimensional method in this comparison. Its compact structure becomes valuable when only one curve is available for fitting.
+\end{frame}
+
+\section{Main Contribution: Tuned-MTL}
+
+\begin{frame}{Central Finding: MTL Has Substantial Unused Capacity}
+  The clean baseline comparison identifies MTL as the strongest of the three published methods under the one-curve fitting regime.
+  \begin{itemize}
+    \item The default MTL search examines only five values of \(\lambda\).
+    \item Near \(\lambda=1\), a small numerical change produces a large change in memory duration.
+    \item A sparse grid can therefore exclude the timescale needed for transfer to WSD.
+  \end{itemize}
+  \vspace{0.4em}
+  Our main contribution is \textbf{Tuned-MTL}: an estimation procedure that searches a broader memory space and places greater fitting emphasis on the informative late portion of the cosine curve.
+\end{frame}
+
+\begin{frame}{Tuned-MTL Retains the Complete MTL Model}
+  Tuned-MTL uses the same predictive equation:
+  \[
+    \widehat L_t
+    =
+    L_0+A\left(\epsilon+\sum_{i\leq t}\eta_i\right)^{-\alpha}
+    -C\sum_{i\leq t}m_i,
+    \qquad
+    m_i=\lambda m_{i-1}+(\eta_{i-1}-\eta_i).
+  \]
+  The estimation procedure changes in three places:
+  \begin{enumerate}
+    \item the \(\lambda\) grid expands from five values to thirteen values concentrated near one;
+    \item selected points in the final 20\% of the cosine curve receive weight \(3\), compared with weight \(2\) in the baseline fit;
+    \item fifty random restarts explore the expanded grid, compared with twenty for the baseline.
+  \end{enumerate}
+\end{frame}
+
+\begin{frame}{Why the Memory Search Matters}
+  Exponential memory has an approximate half-life
+  \[
+    h_{1/2}=\frac{\log(1/2)}{\log\lambda}.
+  \]
+  \begin{center}
+  \begin{tabular}{lrr}
+    \toprule
+    Fit & Selected \(\lambda\) & Approximate half-life \\
+    \midrule
+    Baseline MTL & \(0.99\) & \(69\) recorded steps \\
+    Tuned-MTL & \(0.9997\) & \(2310\) recorded steps \\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+  Tuned-MTL selects a much longer schedule memory. This allows an annealing event to influence predictions over a substantial fraction of training.
+\end{frame}
+
+\begin{frame}{What Tail Weighting Changes}
+  Let
+  \[
+    r_t=\log\widehat L_t-\log \overline L_t
+  \]
+  be the residual against the smoothed cosine loss. Tuned-MTL minimizes
+  \[
+    \sum_{t\in I_{\mathrm{fit}}} w_t\,H_{\delta}(r_t),
+    \qquad
+    w_t=
+    \begin{cases}
+      3, & t\text{ lies in the final 20\% of the fitting region},\\
+      1, & \text{otherwise}.
+    \end{cases}
+  \]
+  Per selected point, late cosine observations contribute three times as strongly. Empirically, this emphasis helps identify the long-memory solution that transfers accurately across the full WSD curve.
+\end{frame}
+
+\begin{frame}{Selected Tuned-MTL Parameters}
+  \begin{center}
+  \small
+  \begin{tabular}{lrl}
+    \toprule
+    Parameter & Fitted value & Role in the model \\
+    \midrule
+    \(L_0\) & \(2.72857\) & asymptotic loss floor \\
+    \(A\) & \(774.097\) & scale of the progress term \\
+    \(\alpha\) & \(0.93428\) & progress-law exponent \\
+    \(C\) & \(4.936\times 10^{-5}\) & annealing-response magnitude \\
+    \(\lambda\) & \(0.9997\) & memory persistence \\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+  The numerical scale of \(A\) and \(C\) follows the normalization of the learning-rate schedule. Their functional roles are given by the complete equation on the preceding slides.
+\end{frame}
+
+\begin{frame}{Secondary Explorations}
+  After establishing Tuned-MTL, we tested several smaller modifications.
+  \begin{itemize}
+    \item \textbf{Two-scale and three-scale MTL} mix fixed exponential memories to approximate multiple timescales.
+    \item \textbf{Compact FSL--MPL} replaces the MPL kernel with a simpler intrinsic-time response.
+    \item \textbf{Source-weighted FSL--MPL} lets the strength of a decay event depend on when it occurs.
+    \item \textbf{Residual-corrected FSL--MPL} fits a regularized correction to the cosine residuals.
+  \end{itemize}
+  These variants are exploratory contributions. They probe alternative inductive biases and remain secondary to Tuned-MTL in the final comparison.
+\end{frame}
+
+\begin{frame}{Lesson from the Exploratory Variants}
+  The exploratory models add expressive schedule-response mechanisms, yet none reaches the full-curve transfer accuracy of Tuned-MTL.
+  \begin{itemize}
+    \item Multiple memory scales are difficult to identify from a single cosine trajectory.
+    \item Event-wise kernels can improve selected regions while introducing bias elsewhere.
+    \item Residual correction improves average behavior in the stable region and loses calibration during WSD decay.
+  \end{itemize}
+  The comparison favors a compact model whose relevant timescale is explicitly included in the search space.
+\end{frame}
+
+\section{Experimental Design}
+
+\begin{frame}{Course Data}
+  The dataset contains three loss curves with the same model size and data budget; only the learning-rate schedule changes.
+  \begin{center}
+  \begin{tabular}{lrrl}
+    \toprule
+    Schedule & Observations & Final step & Experimental role \\
+    \midrule
+    Cosine & \(33{,}907\) & \(33{,}906\) & parameter fitting \\
+    WSD & \(33{,}907\) & \(33{,}906\) & main evaluation \\
+    \(8\)-\(1\)-\(1\) & \(33{,}908\) & \(33{,}907\) & auxiliary evaluation \\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+  In the \(8\)-\(1\)-\(1\) schedule, the learning rate changes at 80\% and 90\% of training, producing three levels:
+  \[
+    \eta,\qquad \eta/\sqrt{10},\qquad \eta/10.
+  \]
 \end{frame}
 
 \begin{frame}{Learning-Rate Schedules}
   \begin{center}
-    \includegraphics[width=0.82\linewidth]{lr_schedules.png}
+    \includegraphics[height=0.62\textheight,keepaspectratio]{lr_schedules.png}
   \end{center}
-  \vspace{-0.5em}
-  Cosine decays smoothly; WSD has a long stable region then decay; 8-1-1 decays at 80\% and 90\%.
+  \vspace{-0.8em}
+  Cosine decays continuously; WSD has a stable phase; \(8\)-\(1\)-\(1\) introduces two discrete reductions.
 \end{frame}
 
-\begin{frame}{Observed Loss Curves}
+\begin{frame}{Observation and Prediction Target}
+  The recorded loss contains high-frequency training noise. We form an exponentially weighted moving average:
+  \[
+    \overline L_t=(1-a)\overline L_{t-1}+aL_t,
+    \qquad
+    a=\frac{2}{201+1}.
+  \]
+  \begin{itemize}
+    \item The span parameter \(201\) determines the geometric rate at which older observations lose influence.
+    \item The resulting curve preserves schedule-scale trends while reducing local noise.
+    \item All headline metrics compare predictions with this smoothed target.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Observed Loss Curves After Warmup}
   \begin{center}
-    \includegraphics[width=0.82\linewidth]{loss_curves_ema.png}
+    \includegraphics[height=0.62\textheight,keepaspectratio]{loss_curves_ema.png}
   \end{center}
-  \vspace{-0.5em}
-  The EMA view removes high-frequency noise while preserving schedule-scale trends.
+  \vspace{-0.8em}
+  The plot begins at step \(1000\) and caps the vertical axis at \(4.1\) to expose schedule differences.
 \end{frame}
 
-\begin{frame}{Indexing Choices}
-  Canonical strict configuration:
-  \begin{center}
-  \begin{tabular}{lr}
-    \toprule
-    Parameter & Value \\
-    \midrule
-    EMA span & 201 \\
-    min step & 1000 \\
-    fit stride & 800 \\
-    tail fit stride & 250 \\
-    eval stride & 20 \\
-    source stride for MPL/FSL-MPL+ & 100 \\
-    MTL restarts & 20 \\
-    \bottomrule
-  \end{tabular}
-  \end{center}
-  All generated CSVs store the full predictions used to recompute metrics.
+\begin{frame}{Fitting and Evaluation Protocol}
+  Every method follows the same main experimental sequence.
+  \begin{enumerate}
+    \item We fit model parameters to the smoothed cosine curve from step \(1000\) onward.
+    \item The fitting set uses one observation every \(800\) steps, with denser sampling every \(250\) steps in the final 20\% of the fitting region.
+    \item We evaluate the fitted model on WSD every \(20\) steps and include the final observation.
+    \item We apply the same evaluation to \(8\)-\(1\)-\(1\) as auxiliary evidence.
+  \end{enumerate}
+  WSD and \(8\)-\(1\)-\(1\) values do not enter the continuous parameter fitting objective.
 \end{frame}
 
-\begin{frame}{Data Manifest And Integrity Checks}
-  The cleaned repository writes a data manifest for each run.
-  \begin{itemize}
-    \item Confirms schedule name, row count, step range, peak LR, final LR, final raw/EMA loss.
-    \item Uses the explicit course \code{lr} column instead of reconstructing schedules from filenames.
-    \item Keeps the original pickle unchanged under \code{data/loss\_curves/}.
-  \end{itemize}
-  Sanity checks verify finite positive losses, finite learning rates, and recomputable metrics.
-\end{frame}
-
-\begin{frame}{Evidence Framing}
-  We distinguish three levels of evidence.
-  \begin{itemize}
-    \item \metric{Clean strict reproduction}: fit and model selection use cosine only.
-    \item \metric{Auxiliary evidence}: evaluate on 8-1-1 without using it for main selection.
-    \item \metric{Exploratory tuned baseline}: expand the MTL hyperparameter setting to test traditional-baseline headroom.
-  \end{itemize}
-  Tuned MTL is included mainly to show the potential still available inside the traditional MTL family.
-\end{frame}
-
-\section{Baselines}
-
-\begin{frame}{Baseline 1: Momentum Law (MTL)}
-  The Tissue et al. learning-rate annealing law is implemented as
+\begin{frame}{Huber Loss on Logarithmic Residuals}
+  The fitting residual is
   \[
-    \widehat L(t)=L_0 + A\,T_t^{-\alpha} - C\,S_2(t),
+    r_t=\log\widehat L_t-\log\overline L_t .
+  \]
+  We apply the Huber function
+  \[
+  H_\delta(r)=
+  \begin{cases}
+    \tfrac12r^2, & |r|\leq\delta,\\
+    \delta\left(|r|-\tfrac12\delta\right), & |r|>\delta,
+  \end{cases}
+  \qquad \delta=10^{-3}.
+  \]
+  Logarithmic residuals measure proportional disagreement, while the linear Huber regime limits the influence of occasional large deviations.
+\end{frame}
+
+\begin{frame}{How the Reported Metrics Are Calculated}
+  For observed values \(y_t=\overline L_t\), predictions \(\widehat y_t\), and the WSD evaluation index set \(I\):
+  \[
+    \mathrm{RMSE}
+      =\sqrt{\frac{1}{|I|}\sum_{t\in I}(\widehat y_t-y_t)^2},
     \qquad
-    T_t = \epsilon + \sum_{i\le t}\eta_i .
+    \mathrm{MAE}
+      =\frac{1}{|I|}\sum_{t\in I}|\widehat y_t-y_t|,
   \]
-  The annealing memory is
   \[
-    m_i=\lambda m_{i-1}+(\eta_{i-1}-\eta_i),
+    R^2
+      =1-\frac{\sum_{t\in I}(y_t-\widehat y_t)^2}
+      {\sum_{t\in I}(y_t-\overline y)^2},
     \qquad
-    S_2(t)=\sum_{i\le t}m_i .
+    \mathrm{FinalE}=|\widehat y_{t_{\mathrm{final}}}-y_{t_{\mathrm{final}}}|.
   \]
-  We grid-search $\lambda$ and fit $(L_0,A,C,\alpha)$ by log-Huber loss.
+  Lower values are better for RMSE, MAE, and FinalE; higher values are better for \(R^2\).
 \end{frame}
 
-\begin{frame}{MTL Strengths And Weaknesses}
-  \textbf{Strengths}
+\begin{frame}{Common Implementation and Evaluation}
+  We adapted the released method implementations to the course data and added an adapter that reads the provided training step, loss, and learning-rate observations directly.
   \begin{itemize}
-    \item Few parameters and stable fitting.
-    \item Strong inductive bias for schedule memory.
-    \item Best clean baseline on WSD EMA full RMSE.
+    \item Each baseline retains its published mathematical formulation.
+    \item A shared evaluation layer applies the same smoothing, evaluation indices, and metric definitions.
+    \item Formula-level checks compare adapted evaluators with the corresponding reference computations under identical parameters.
+    \item Fixed random seeds and restart counts control optimizer variation across repeated runs.
   \end{itemize}
-  \textbf{Weaknesses}
-  \begin{itemize}
-    \item A single exponential memory scale can miss multi-timescale schedule effects.
-    \item Grid choice for $\lambda$ strongly affects transfer.
-  \end{itemize}
-\end{frame}
-
-\begin{frame}{Baseline 2: Multi-Power Law (MPL)}
-  MPL models schedule response with a nonlinear accumulated LR-drop term:
-  \[
-    \widehat L(t)
-      =
-      L_0 + A T_t^{-\alpha}
-      - B\sum_{i\le t}\Delta_i^+
-      \left[1-\left(1+C\,\eta_i^{-\gamma}(T_t-T_i+\eta_i)\right)^{-\beta}\right].
-  \]
-  Here $\Delta_i^+=\max(\eta_{i-1}-\eta_i,0)$ extracts positive LR decay sources.
-\end{frame}
-
-\begin{frame}{MPL Implementation Adaptation}
-  The original MPL repository could not be used directly on the course CSV form.
-  \begin{itemize}
-    \item Its loader reconstructs learning-rate schedules from hard-coded paper filenames.
-    \item The cleaned implementation uses the course \code{lr} column directly.
-    \item Original-compatible adapter checks showed the formula/evaluator agrees numerically with the upstream evaluator when given the same parameters.
-  \end{itemize}
-  This separates a data-adapter problem from the mathematical model.
-\end{frame}
-
-\begin{frame}{Baseline 3: Faithful FSL}
-  Functional Scaling Laws use intrinsic time:
-  \[
-    T(k)=\sum_{i\le k}\eta_i .
-  \]
-  The practical LLM ansatz from Appendix B.2 is
-  \[
-    L_{\Theta}(k)=L_0+\frac{c_1}{T(k)^s}-\mathrm{LRD}(k),
-  \]
-  where $\mathrm{LRD}$ is a schedule-response convolution over LR drops.
-\end{frame}
-
-\begin{frame}{FSL Practical Response}
-  In fixed model-size course data, the implemented response is
-  \[
-  \mathrm{LRD}(k)=
-  c_2 \sum_{i\le k}(\eta_{i-1}-\eta_i)^+
-  \left(c_3+\frac{1}{T(i)^s}\right)
-  \left(1-\frac{1}{(1+c_4(T(k)-T(i)))^\gamma}\right).
-  \]
-  We do not invent missing kernel-regression quantities such as spectra, source coefficients, or noise variance.
-\end{frame}
-
-\begin{frame}{FSL Reproduction Policy}
-  Faithful FSL is freshly fit from the audited reproduction formula.
-  \begin{itemize}
-    \item The code contains the FSL fitter and runs it by default.
-    \item The final table uses a fixed-seed 10-restart fit to control local optimizer drift.
-    \item The fitted model uses cosine only; WSD loss is used only for evaluation.
-  \end{itemize}
-  This keeps the result generated from code while preserving the formula implementation.
-\end{frame}
-
-\begin{frame}{Unified Baseline Outputs}
-  Every baseline writes the same result schema:
-  \begin{itemize}
-    \item \code{predictions.csv}: method, schedule, role, step, lr, raw/EMA loss, prediction, errors.
-    \item \code{metrics.csv}: protocol, method, schedule, target, region, $R^2$, MAE, RMSE, FinalE, WorstE.
-    \item \code{fitted\_params.json}: parameters, fit target, source stride, and selection-signal notes.
-  \end{itemize}
-\end{frame}
-
-\section{Method Development}
-
-\begin{frame}{Development Goal}
-  We explored methods that keep the same input/output protocol but change the schedule-response bias.
-  \begin{itemize}
-    \item Can MPL-style power response improve noisy raw-loss behavior?
-    \item Can FSL-style intrinsic-time kernels improve transfer?
-    \item Can multiple memory scales beat single-$\lambda$ MTL?
-    \item Can a tuned MTL optimizer/hyperparameter setting recover missed performance?
-  \end{itemize}
-\end{frame}
-
-\begin{frame}{FSL-MPL+ Small}
-  FSL-MPL+ small replaces MPL's response with a simpler intrinsic-time power response:
-  \[
-    R_{\mathrm{small}}(t,i)
-    =
-    1-\left(1+\kappa \eta_i^{-\gamma}(T_t-T_i)\right)^{-q}.
-  \]
-  Prediction form:
-  \[
-    \widehat L(t)=L_0+A T_t^{-\alpha}
-    -B\sum_i \Delta_i^+ R_{\mathrm{small}}(t,i).
-  \]
-  The intent is to reduce purely empirical coupling while retaining LR-drop response.
-\end{frame}
-
-\begin{frame}{FSL-MPL+ Source}
-  The source variant adds a source-amplitude term:
-  \[
-    \widehat L(t)=L_0+A T_t^{-\alpha}
-    -B\sum_i \Delta_i^+
-    \left(1+c_s T_i^{-\alpha}\right)R_{\mathrm{small}}(t,i).
-  \]
-  Motivation:
-  \begin{itemize}
-    \item LR drops at different intrinsic times may have different effective strength.
-    \item The source term borrows FSL's view that earlier/later sources have different decay behavior.
-  \end{itemize}
-\end{frame}
-
-\begin{frame}{Kernelized MTL}
-  KMTL replaces one exponential memory scale by a nonnegative mixture:
-  \[
-    S_K(t)=\sum_{j=1}^m w_j S_{\lambda_j}(t),
-    \qquad
-    w_j\ge 0,\quad \sum_j w_j=1.
-  \]
-  Tested fixed kernels:
-  \begin{itemize}
-    \item $m=2$: $\{0.99,0.999\}$.
-    \item $m=3$: $\{0.99,0.999,0.9999\}$.
-  \end{itemize}
-  The hope was to approximate heavy-tail memory with a small mixture.
-\end{frame}
-
-\begin{frame}{NCPL-Lite Residual}
-  NCPL-lite is a small residual diagnostic, not a full neural ansatz.
-  \[
-    \log L_{\mathrm{true}}(t) - \log L_{\mathrm{base}}(t)
-    \approx
-    r_\theta(\phi(t)).
-  \]
-  Implementation:
-  \begin{itemize}
-    \item Fit FSL-MPL+ source first.
-    \item Fit a ridge residual on cosine features only.
-    \item Clip residual corrections to prevent runaway extrapolation.
-  \end{itemize}
-\end{frame}
-
-\begin{frame}{Tuned MTL}
-  The final tuned method keeps the MTL formula unchanged.
-  \begin{itemize}
-    \item Wider $\lambda$ grid includes $\lambda=0.9997$.
-    \item Tail-weighted cosine fitting uses tail weight 3.0.
-    \item Same four fitted parameters: $(L_0,A,C,\alpha)$.
-  \end{itemize}
-  Tuned parameters:
-  \[
-    L_0=2.7284,\quad A=774.10,\quad C=4.93\times 10^{-5},\quad
-    \alpha=0.9343,\quad \lambda=0.9997.
-  \]
-\end{frame}
-
-\begin{frame}{Tuned MTL Interpretation}
-  Tuned MTL is numerically strongest, and its role is to test how much performance remains inside traditional MTL.
-  \begin{itemize}
-    \item The MTL formula is unchanged.
-    \item A wider $\lambda$ grid and stronger tail weighting expose a better MTL basin.
-    \item Parameters are freshly refit from cosine data with fixed seeds.
-  \end{itemize}
-  We present it as a traditional-baseline headroom result: the original MTL family was under-optimized.
-\end{frame}
-
-\begin{frame}{What The Repository Ships}
-  The final repository focuses on curated, reproducible runs.
-  \begin{itemize}
-    \item The final repo ships tuned-MTL configuration metadata, not opaque fitted weights.
-    \item Baselines, variants, FSL, NCPL-lite, and tuned MTL are freshly fit with fixed seeds.
-    \item Result artifacts share the same metrics, predictions, and fitted-parameter schema.
-  \end{itemize}
-  This keeps the result easy to reproduce and compare.
+  Implementation commands, artifact schemas, dependency versions, and integrity checks are documented in the repository.
 \end{frame}
 
 \section{Quantitative Results}
 
-\begin{frame}{Headline Table: WSD EMA Full}
+\begin{frame}{Primary Finding}
+  Our primary finding is that Tuned-MTL achieves a full-region WSD RMSE of
+  \(0.015461\), compared with \(0.034569\) for baseline MTL. This corresponds
+  to a 55.3\% reduction in RMSE and reveals substantial performance headroom
+  within the original MTL model family.
+\end{frame}
+
+\begin{frame}{WSD Results on the Smoothed Full Curve}
   \begin{center}
   \scriptsize
   \begin{tabular}{lrrrr}
     \toprule
-    Method & RMSE & MAE & $R^2$ & FinalE \\
+    Method & RMSE \(\downarrow\) & MAE \(\downarrow\) & \(R^2\) \(\uparrow\) & FinalE \(\downarrow\) \\
     \midrule
-    Tuned MTL & 0.015461 & 0.010069 & 0.992727 & 0.016741 \\
-    MTL & 0.034569 & 0.028816 & 0.963640 & 0.004317 \\
-    FSL-MPL+ source + NCPL-lite & 0.038326 & 0.027214 & 0.955309 & 0.081484 \\
-    FSL-MPL+ source & 0.038635 & 0.026214 & 0.954584 & 0.027232 \\
-    MPL & 0.040219 & 0.031148 & 0.950783 & 0.029069 \\
-    FSL & 0.040358 & 0.035311 & 0.950443 & 0.053288 \\
-    KMTL-m3 & 0.044395 & 0.035417 & 0.940033 & 0.064200 \\
-    FSL-MPL+ small & 0.050309 & 0.037628 & 0.922992 & 0.011666 \\
-    KMTL-m2 & 0.102856 & 0.090321 & 0.678114 & 0.050873 \\
+    \textcolor{baselinecolor}{MTL} & \second{0.034569} & 0.028816 & \second{0.963640} & \best{0.004317} \\
+    \textcolor{baselinecolor}{MPL} & 0.040219 & 0.031148 & 0.950783 & 0.029069 \\
+    \textcolor{baselinecolor}{FSL} & 0.040358 & 0.035311 & 0.950443 & 0.053288 \\
+    \midrule
+    \textcolor{tunedcolor}{Tuned-MTL} & \best{0.015461} & \best{0.010069} & \best{0.992727} & 0.016741 \\
+    \midrule
+    \textcolor{variantcolor}{Residual-corrected FSL--MPL} & 0.038326 & 0.027214 & 0.955309 & 0.081484 \\
+    \textcolor{variantcolor}{Source-weighted FSL--MPL} & 0.038635 & \second{0.026214} & 0.954584 & 0.027232 \\
+    \textcolor{variantcolor}{Three-scale MTL} & 0.044395 & 0.035417 & 0.940033 & 0.064200 \\
+    \textcolor{variantcolor}{Compact FSL--MPL} & 0.050309 & 0.037628 & 0.922993 & \second{0.011667} \\
+    \textcolor{variantcolor}{Two-scale MTL} & 0.102856 & 0.090321 & 0.678114 & 0.050873 \\
     \bottomrule
   \end{tabular}
   \end{center}
-  Tuned MTL is best numerically; clean MTL remains the strict cosine-only MTL baseline.
+  \vspace{0.2em}
+  Values compare predictions with the EMA-smoothed WSD curve from step \(1000\), sampled every \(20\) steps. Bold marks the best value and italics mark the second best.
 \end{frame}
 
-\begin{frame}{Headline RMSE Bar Chart}
+\begin{frame}{Method Groups in the Main Comparison}
   \begin{center}
-    \includegraphics[width=0.9\linewidth]{all_wsd_rmse_bar.png}
+    \includegraphics[height=0.62\textheight,keepaspectratio]{all_wsd_rmse_bar.png}
   \end{center}
+  \vspace{-0.8em}
+  Published baselines appear first, followed by Tuned-MTL and the exploratory variants.
 \end{frame}
 
-\begin{frame}{Main Interpretation}
-  Three main messages:
-  \begin{itemize}
-    \item MTL is a very strong clean baseline in the one-cosine-fit regime.
-    \item More expressive variants often improve one metric but worsen another.
-    \item Tuned MTL cuts WSD EMA full RMSE by about 55\% relative to clean MTL, showing headroom in the traditional MTL family.
-  \end{itemize}
-  The important scientific point is not only "which row wins", but why small-data schedule transfer punishes extra flexibility.
+\begin{frame}{Where Tuned-MTL Gains Accuracy}
+  \begin{center}
+  \small
+  \begin{tabular}{lrr}
+    \toprule
+    WSD region & Baseline MTL RMSE & Tuned-MTL RMSE \\
+    \midrule
+    Full evaluation curve & \second{0.034569} & \best{0.015461} \\
+    Stable phase & \second{0.037392} & \best{0.007664} \\
+    Final 20\% & \best{0.018448} & \second{0.030976} \\
+    Final \(1000\) steps & \best{0.004565} & \second{0.020278} \\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+  Tuned-MTL's full-curve advantage comes primarily from the long stable phase. Baseline MTL remains more accurate near the endpoint, so the preferred setting depends on the evaluation objective.
 \end{frame}
 
-\begin{frame}{Tuned MTL Versus Clean MTL}
+\begin{frame}{Direct Comparison with Baseline MTL}
+  \begin{center}
+  \small
+  \begin{tabular}{lrr}
+    \toprule
+    Metric & Baseline MTL & Tuned-MTL \\
+    \midrule
+    WSD RMSE & \second{0.034569} & \best{0.015461} \\
+    WSD MAE & \second{0.028816} & \best{0.010069} \\
+    WSD MAPE & \second{0.010213} & \best{0.003591} \\
+    WSD \(R^2\) & \second{0.963640} & \best{0.992727} \\
+    WSD FinalE & \best{0.004317} & \second{0.016741} \\
+    WSD WorstE & \best{0.063370} & \second{0.082189} \\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+  Tuned-MTL gives the most accurate global trajectory. Baseline MTL provides tighter endpoint and worst-case calibration.
+\end{frame}
+
+\begin{frame}{Auxiliary Transfer to the \(8\)-\(1\)-\(1\) Schedule}
   \begin{center}
   \begin{tabular}{lrrr}
     \toprule
-    Metric & Clean MTL & Tuned MTL & Change \\
+    Method & RMSE \(\downarrow\) & MAE \(\downarrow\) & \(R^2\) \(\uparrow\) \\
     \midrule
-    WSD EMA full RMSE & 0.034569 & 0.015461 & -55.3\% \\
-    WSD EMA full MAE & 0.028816 & 0.010070 & -65.1\% \\
-    WSD EMA full MAPE & 0.010213 & 0.003591 & -64.8\% \\
-    WSD FinalE & 0.004317 & 0.016748 & worse \\
-    WSD WorstE & 0.063370 & 0.082274 & worse \\
+    MTL & \second{0.030190} & \second{0.024659} & \second{0.973120} \\
+    MPL & 0.041732 & 0.030597 & 0.948638 \\
+    FSL & 0.041044 & 0.033478 & 0.950317 \\
+    \midrule
+    Tuned-MTL & \best{0.013594} & \best{0.008491} & \best{0.994550} \\
     \bottomrule
   \end{tabular}
   \end{center}
-  Tuned MTL improves the full-curve objective but spends some error at the final point.
-\end{frame}
-
-\begin{frame}{Auxiliary 8-1-1 Evidence}
-  8-1-1 provides auxiliary evidence outside the main WSD table.
-  \begin{center}
-  \begin{tabular}{lrr}
-    \toprule
-    Method & 8-1-1 EMA full RMSE & Interpretation \\
-    \midrule
-    Tuned MTL & 0.013594 & strong auxiliary transfer \\
-    MTL & 0.030190 & clean baseline \\
-    FSL-MPL+ source + NCPL-lite & 0.035313 & lower MAE, worse final \\
-    MPL & 0.041732 & weaker transfer \\
-    \bottomrule
-  \end{tabular}
-  \end{center}
-  This supports, but does not prove, that the tuned basin is meaningful beyond WSD.
-\end{frame}
-
-\begin{frame}{Raw-Loss Metrics}
-  Raw loss is noisier than EMA loss.
   \begin{itemize}
-    \item Some FSL-MPL+ variants show competitive raw-loss behavior.
-    \item EMA remains the main metric because it reduces observation noise and matches the report protocol.
-    \item A method can look good on raw MAE but still fail tail/final diagnostics.
+    \item Tuned-MTL also attains the lowest error on this second schedule.
+    \item Baseline MTL remains the strongest published baseline.
+    \item The \(8\)-\(1\)-\(1\) curve is evaluated with the same fitted parameters and metric definitions.
   \end{itemize}
-  In our final story, raw metrics are supporting diagnostics, not the headline.
 \end{frame}
 
-\begin{frame}{Final-Step Tradeoff}
-  Tuned MTL improves the full WSD region but has larger final error than clean MTL.
+\begin{frame}{Quantitative Interpretation}
+  The results support three conclusions.
   \begin{itemize}
-    \item Clean MTL FinalE: 0.004317.
-    \item Tuned MTL FinalE: 0.016700.
-    \item NCPL-lite FinalE: 0.083302.
+    \item A low-dimensional schedule model is well matched to the one-curve fitting regime.
+    \item Memory-scale coverage is decisive: \(\lambda=0.9997\) makes much longer history available to MTL.
+    \item Full-curve error and endpoint error reward different calibration choices. Tuned-MTL is strongest for the declared full-region objective, while baseline MTL remains stronger at the final point.
   \end{itemize}
-  If the project objective were "last point only", the ranking would change.
-\end{frame}
-
-\begin{frame}{Worst-Case Error Tradeoff}
-  WorstE highlights local failures:
-  \begin{center}
-  \begin{tabular}{lr}
-    \toprule
-    Method & WSD EMA WorstE \\
-    \midrule
-    MTL & 0.063370 \\
-    Tuned MTL & 0.082189 \\
-    FSL & 0.069316 \\
-    NCPL-lite & 0.286106 \\
-    MPL & 0.313013 \\
-    \bottomrule
-  \end{tabular}
-  \end{center}
-  This is why the slides report multiple metrics instead of one leaderboard.
-\end{frame}
-
-\begin{frame}{Region-Level Lesson}
-  Region metrics reveal why "more expressive" is not automatically better.
-  \begin{itemize}
-    \item Tail20 has low variance, so $R^2$ can be unstable or negative even when absolute error is moderate.
-    \item Full-region RMSE rewards the long stable/early-decay region.
-    \item Final1000 and FinalE expose endpoint calibration failures.
-  \end{itemize}
-  The tuned MTL result is best for the declared full-region objective, not all objectives.
+  The auxiliary schedule follows the same overall ranking and strengthens the evidence for the long-memory setting.
 \end{frame}
 
 \section{Qualitative Results}
 
-\begin{frame}{Clean MTL WSD Prediction}
-  \begin{center}
-    \includegraphics[width=0.82\linewidth]{mtl_wsd_prediction.png}
-  \end{center}
-  Clean MTL captures the overall WSD trend and remains the strongest strict baseline.
+\begin{frame}{Tuned-MTL WSD Prediction}
+  \begin{columns}[T,onlytextwidth]
+    \begin{column}{0.70\textwidth}
+      \includegraphics[width=\linewidth]{tuned_mtl_wsd_prediction.png}
+    \end{column}
+    \begin{column}{0.27\textwidth}
+      \small
+      Tuned-MTL follows the stable WSD phase closely, where its RMSE is \(0.007664\).
+
+      \vspace{0.6em}
+      During final decay, the prediction stays above the observed curve. This produces the larger tail and endpoint errors seen in the regional table.
+    \end{column}
+  \end{columns}
 \end{frame}
 
-\begin{frame}{MPL WSD Prediction}
-  \begin{center}
-    \includegraphics[width=0.82\linewidth]{mpl_wsd_prediction.png}
-  \end{center}
-  MPL is flexible, but the single cosine curve does not identify its response parameters reliably.
+\begin{frame}{Tuned-MTL Cosine Fit and Transfer}
+  \begin{columns}[T,onlytextwidth]
+    \begin{column}{0.70\textwidth}
+      \includegraphics[width=\linewidth]{tuned_mtl_cosine_fit.png}
+    \end{column}
+    \begin{column}{0.27\textwidth}
+      \small
+      The fitted cosine curve remains smooth across the full training horizon.
+
+      \vspace{0.6em}
+      Tail weighting keeps the fit sensitive to the cosine decay region, while the selected \(\lambda\) supplies the long memory needed for transfer.
+    \end{column}
+  \end{columns}
 \end{frame}
 
-\begin{frame}{Faithful FSL WSD Prediction}
-  \begin{center}
-    \includegraphics[width=0.82\linewidth]{fsl_wsd_prediction.png}
-  \end{center}
-  Faithful FSL gives a principled intrinsic-time response but keeps a systematic WSD bias.
+\begin{frame}{Baseline MTL WSD Prediction}
+  \begin{columns}[T,onlytextwidth]
+    \begin{column}{0.70\textwidth}
+      \includegraphics[width=\linewidth]{mtl_wsd_prediction.png}
+    \end{column}
+    \begin{column}{0.27\textwidth}
+      \small
+      Baseline MTL captures the overall WSD shape.
+
+      \vspace{0.6em}
+      Its positive bias through much of the stable phase raises full-curve RMSE. Near the endpoint, the prediction converges closely to the observed loss, giving the best FinalE.
+    \end{column}
+  \end{columns}
 \end{frame}
 
-\begin{frame}{FSL-MPL+ Small WSD Prediction}
-  \begin{center}
-    \includegraphics[width=0.82\linewidth]{fslmpl_small_wsd_prediction.png}
-  \end{center}
-  The small variant is theoretically motivated but does not beat clean MTL on EMA full RMSE.
+\begin{frame}{Baseline MPL WSD Prediction}
+  \begin{columns}[T,onlytextwidth]
+    \begin{column}{0.70\textwidth}
+      \includegraphics[width=\linewidth]{mpl_wsd_prediction.png}
+    \end{column}
+    \begin{column}{0.27\textwidth}
+      \small
+      MPL adapts visibly to the WSD decay transition.
+
+      \vspace{0.6em}
+      A large early deviation and a negative bias through the stable phase dominate its full error. The final prediction then moves above the observed curve.
+    \end{column}
+  \end{columns}
 \end{frame}
 
-\begin{frame}{NCPL-Lite WSD Prediction}
-  \begin{center}
-    \includegraphics[width=0.82\linewidth]{ncpl_wsd_prediction.png}
-  \end{center}
-  NCPL-lite improves average error but badly worsens final and worst-case error.
+\begin{frame}{Baseline FSL WSD Prediction}
+  \begin{columns}[T,onlytextwidth]
+    \begin{column}{0.70\textwidth}
+      \includegraphics[width=\linewidth]{fsl_wsd_prediction.png}
+    \end{column}
+    \begin{column}{0.27\textwidth}
+      \small
+      FSL gives a smooth intrinsic-time prediction.
+
+      \vspace{0.6em}
+      It develops a systematic positive bias during WSD decay: the mean decay-region error is \(0.0574\). This bias explains its larger tail and final errors.
+    \end{column}
+  \end{columns}
 \end{frame}
 
-\begin{frame}{KMTL-m3 WSD Prediction}
-  \begin{center}
-    \includegraphics[width=0.82\linewidth]{kmtlm3_wsd_prediction.png}
-  \end{center}
-  Multi-memory MTL is plausible, but the fixed three-kernel version is not stable enough here.
+\begin{frame}{Auxiliary Figure: Compact FSL--MPL}
+  \begin{columns}[T,onlytextwidth]
+    \begin{column}{0.70\textwidth}
+      \includegraphics[width=\linewidth]{fslmpl_small_wsd_prediction.png}
+    \end{column}
+    \begin{column}{0.27\textwidth}
+      \small
+      This exploratory variant underpredicts much of the stable phase.
+
+      \vspace{0.6em}
+      Its endpoint calibration is comparatively strong, although its full-curve RMSE remains above all three published baselines.
+    \end{column}
+  \end{columns}
 \end{frame}
 
-\begin{frame}{Tuned MTL Cosine Fit}
-  \begin{center}
-    \includegraphics[width=0.82\linewidth]{tuned_mtl_cosine_fit.png}
-  \end{center}
-  Tuned MTL fits cosine slightly less perfectly than clean MTL in some views, but transfers better to WSD full RMSE.
+\begin{frame}{Auxiliary Figure: Three-Scale MTL}
+  \begin{columns}[T,onlytextwidth]
+    \begin{column}{0.70\textwidth}
+      \includegraphics[width=\linewidth]{kmtlm3_wsd_prediction.png}
+    \end{column}
+    \begin{column}{0.27\textwidth}
+      \small
+      The three-scale mixture follows the stable region reasonably well.
+
+      \vspace{0.6em}
+      It retains too much positive correction through WSD decay, producing a tail RMSE of \(0.0713\). One cosine curve provides limited information for estimating several memory weights.
+    \end{column}
+  \end{columns}
 \end{frame}
 
-\begin{frame}{Tuned MTL WSD Prediction}
-  \begin{center}
-    \includegraphics[width=0.82\linewidth]{tuned_mtl_wsd_prediction.png}
-  \end{center}
-  The tuned basin shifts the global curve shape closer to WSD across the main evaluation region.
-\end{frame}
-
-\begin{frame}{All-Method WSD Error Curves}
-  \begin{center}
-    \includegraphics[width=0.86\linewidth]{all_wsd_error_comparison.png}
-  \end{center}
-  Error curves make the tradeoff visible: average error, final error, and local spikes do not agree.
-\end{frame}
-
-\section{Failure Exploration}
-
-\begin{frame}{Failure Pattern 1: More Restarts Alone}
-  A restart-only check shows that simply increasing MTL restarts does not explain the final gain.
+\begin{frame}{Qualitative Synthesis}
+  The prediction curves clarify the aggregate metrics.
   \begin{itemize}
-    \item 50, 100, and 200 restarts with the default grid stay near the original MTL basin.
-    \item The key was the wider $\lambda$ grid plus a stronger tail-weighted fit.
-  \end{itemize}
-  Lesson: optimizer effort helps only if the search space contains the useful basin.
-\end{frame}
-
-\begin{frame}{Failure Pattern 2: Overexpressive Schedule Response}
-  MPL and FSL-MPL+ introduce extra nonlinear degrees of freedom.
-  \begin{itemize}
-    \item These can reduce some average errors.
-    \item But they often produce larger endpoint or worst-case errors.
-    \item With one fit curve, parameter identifiability is the bottleneck.
-  \end{itemize}
-\end{frame}
-
-\begin{frame}{Failure Pattern 3: Kernelized MTL Instability}
-  KMTL tries to approximate multi-timescale memory.
-  \begin{itemize}
-    \item $m=2$ can collapse into poor local minima.
-    \item $m=3$ has better final error but worse full RMSE than MTL.
-    \item Mixture weights are hard to identify from one cosine curve.
-  \end{itemize}
-\end{frame}
-
-\begin{frame}{Failure Pattern 4: Residual Correction Overreach}
-  NCPL-lite has the lowest non-tuned MAE but poor final/worst errors.
-  \begin{itemize}
-    \item Residual features learn cosine residual structure.
-    \item The learned residual does not extrapolate cleanly to WSD tail/final behavior.
-    \item Clipping prevents catastrophic blow-up but does not solve calibration.
-  \end{itemize}
-\end{frame}
-
-\begin{frame}{Failure Pattern 5: Tail Weight Sensitivity}
-  Tail weighting matters.
-  \begin{itemize}
-    \item Low tail weight can overfit the broad stable region.
-    \item High tail weight can improve WSD transfer for MTL.
-    \item Too much tail emphasis can hurt final or tail-specific objectives.
-  \end{itemize}
-  Tuned MTL uses tail weight 3.0 because it improves the full-region objective in the expanded setting.
-\end{frame}
-
-\begin{frame}{What The Failures Teach}
-  The negative results are useful.
-  \begin{itemize}
-    \item Schedule-transfer prediction is strongly constrained by data scarcity.
-    \item The best formula is not necessarily the most expressive formula.
-    \item Hyperparameter grids can dominate the apparent performance of a simple model.
-    \item A transparent leakage policy is necessary when method search touches WSD.
+    \item Tuned-MTL's long memory corrects the broad stable-phase bias that dominates baseline MTL's RMSE.
+    \item Baseline MTL forgets schedule changes more quickly and aligns more closely with the final WSD observations.
+    \item MPL and FSL respond to decay through richer kernels, yet their fitted responses introduce systematic regional biases.
+    \item The auxiliary variants distribute error differently without improving the main full-curve objective.
   \end{itemize}
 \end{frame}
 
-\section{Reproducibility}
+\section{Takeaways}
 
-\begin{frame}{Clean Repository Layout}
-  \begin{multicols}{2}
-  \small
+\begin{frame}{Takeaways}
   \begin{itemize}
-    \item \code{data/loss\_curves/}
-    \item \code{src/tdlt\_losscurves/}
-    \item \code{src/tdlt\_losscurves/models/}
-    \item \code{scripts/run\_baselines.py}
-    \item \code{scripts/run\_variants.py}
-    \item \code{scripts/run\_tuned\_mtl.py}
-    \item \code{scripts/reproduce\_all.py}
-    \item \code{configs/}
-    \item \code{results/}
-    \item \code{docs/}
-    \item \code{slides/}
-    \item \code{tests/}
-  \end{itemize}
-  \end{multicols}
-\end{frame}
-
-\begin{frame}{Environment}
-  The environment was created as:
-  \begin{block}{Commands}
-  \small
-  \code{conda create -y -n tdlt python=3.10}\\
-  \code{pip install numpy==1.26.4 scipy==1.11.4 matplotlib==3.8.4 tqdm==4.66.4 scikit-learn==1.4.2 pandas==2.2.2}\\
-  \code{pip install torch==2.2.2 --index-url https://download.pytorch.org/whl/cpu}
-  \end{block}
-  Import check records torch as \code{2.2.2+cpu}.
-\end{frame}
-
-\begin{frame}{Reproduction Commands}
-  \begin{block}{Full run}
-  \small
-  \code{conda run -n tdlt python scripts/reproduce\_all.py --out-dir results}
-  \end{block}
-  \begin{block}{Individual runs}
-  \small
-  \code{conda run -n tdlt python scripts/run\_baselines.py}\\
-  \code{conda run -n tdlt python scripts/run\_variants.py}\\
-  \code{conda run -n tdlt python scripts/run\_tuned\_mtl.py}
-  \end{block}
-\end{frame}
-
-\begin{frame}{Code Correctness Checks}
-  Fast checks cover:
-  \begin{itemize}
-    \item Constant LR gives zero MTL annealing memory.
-    \item KMTL with one kernel matches MTL.
-    \item FSL response is zero when there are no LR-drop sources.
-    \item FSL response is monotone with intrinsic-time gap.
-    \item RMSE is recomputable from \code{predictions.csv}.
-  \end{itemize}
-  The result folder also stores \code{results/env/import\_check.txt} and \code{pip\_freeze.txt}.
-\end{frame}
-
-\begin{frame}{Git History}
-  The final repository has a staged history:
-  \begin{itemize}
-    \item scaffold and provenance;
-    \item reusable package and CLIs;
-    \item tuned-selection metadata and fixed-seed fresh-fit configs;
-    \item regenerated results;
-    \item Beamer slides and rendered QA;
-    \item final documentation polish.
-  \end{itemize}
-  This makes the cleanup process auditable rather than a single opaque copy.
-\end{frame}
-
-\begin{frame}{Limitations}
-  \begin{itemize}
-    \item Only three course curves are available.
-    \item Main protocol has one fit schedule, so complex formulas are underidentified.
-    \item Tuned MTL is an exploratory tuned variant rather than the clean strict baseline.
-    \item We do not claim a new theoretical law; the contribution is reproducible comparison and a transparent tuning finding.
+    \item \textbf{Tuned-MTL is the main contribution.} A broader memory search and stronger late-curve emphasis reduce WSD full-region RMSE by 55.3\% relative to baseline MTL.
+    \item The selected \(\lambda=0.9997\) corresponds to a memory half-life of roughly \(2310\) recorded steps, revealing substantial capacity inside the earliest baseline family.
+    \item MPL, FSL, and the exploratory variants provide useful alternative inductive biases, while their additional parameters are harder to estimate from one fitting curve.
+    \item Metric choice matters: Tuned-MTL leads on the global trajectory, and baseline MTL leads on endpoint calibration.
   \end{itemize}
 \end{frame}
 
-\begin{frame}{Conclusion}
+\begin{frame}{Scope and Limitations}
   \begin{itemize}
-    \item MTL is the best clean baseline under the strict protocol.
-    \item MPL/FSL/FSL-MPL+/KMTL/NCPL-lite expose useful modeling directions but are not uniformly better on this tiny data regime.
-    \item Tuned MTL achieves the strongest WSD full-region RMSE by finding a better $\lambda$ basin and tail weight.
-    \item The tuned result should be read as evidence for MTL baseline headroom, with 8-1-1 as auxiliary support.
+    \item The course dataset contains three curves at one model size and one data budget.
+    \item Only the cosine curve is available for continuous parameter fitting, which limits identification of flexible response kernels.
+    \item The quantitative conclusions apply to the declared EMA-smoothed, post-warmup, full-region objective.
+    \item Broader validation should include additional model sizes, training horizons, and independently generated schedules.
   \end{itemize}
 \end{frame}
 
-\begin{frame}{Group Information And Division Of Labor}
+\begin{frame}{Project Repository}
+  We present our project repository at
+  \[
+    \href{https://github.com/VincentWangzt/TDLT_project}{\textcolor{baselinecolor}{\textbf{https://github.com/VincentWangzt/TDLT\_project}}}.
+  \]
+  The repository provides:
   \begin{itemize}
-    \item Member 1: TODO name, student ID, graduate/undergraduate status.
-    \item Member 2: TODO name, student ID, graduate/undergraduate status.
-    \item Member 3: TODO name, student ID, graduate/undergraduate status.
+    \item the shared data adapter and published baseline implementations;
+    \item the Tuned-MTL configuration and the exploratory variants;
+    \item fixed-seed experiment entry points and generated prediction tables;
+    \item metric definitions, environment specifications, tests, and documentation.
   \end{itemize}
-  \smallgap
-  Division of labor placeholder:
+  The README records the complete reproduction procedure and implementation details.
+\end{frame}
+
+\begin{frame}{Group Information and Division of Labor}
   \begin{itemize}
-    \item Literature/formula audit: TODO.
-    \item Code/reproduction: TODO.
-    \item Method development/results/slides: TODO.
+    \item Member 1: 黄天域, 学号2300010720, 实验部分以及前期改进探索
+    \item Member 2: 王梓桐, 学号2300010750, 基线实现以及参数改进探索
+    \item Member 3: 柯怿憬, 学号2400013060, 前期调研, 报告写作, 实验部分
   \end{itemize}
 \end{frame}
 
 \appendix
 \section{Appendix}
 
-\begin{frame}{Appendix: MTL Lambda Grids}
-  Clean MTL grid:
+\begin{frame}{Appendix: MTL Memory Grids}
+  The baseline search uses
   \[
-  \{0.95,\;0.99,\;0.995,\;0.999,\;0.9995\}.
+    \{0.95,\;0.99,\;0.995,\;0.999,\;0.9995\}.
   \]
-  Tuned MTL wider grid:
+  Tuned-MTL searches
   \[
-  \{0.9,0.95,0.97,0.99,0.993,0.995,0.997,0.999,
-    0.9993,0.9995,0.9997,0.9999,0.99995\}.
+  \begin{split}
+    \{&0.9,\;0.95,\;0.97,\;0.99,\;0.993,\;0.995,\;0.997,\\
+      &0.999,\;0.9993,\;0.9995,\;0.9997,\;0.9999,\;0.99995\}.
+  \end{split}
   \]
-  The selected tuned value is $\lambda=0.9997$.
+  The expanded grid resolves long memory scales much more finely near one. The selected value is \(\lambda=0.9997\).
 \end{frame}
 
-\begin{frame}{Appendix: Tuned MTL Parameters}
-  \begin{center}
-  \begin{tabular}{lr}
-    \toprule
-    Parameter & Value \\
-    \midrule
-    $L_0$ & 2.7284210565 \\
-    $A$ & 774.0970766973 \\
-    $C$ & $4.9317543\times 10^{-5}$ \\
-    $\alpha$ & 0.9342665162 \\
-    $\lambda$ & 0.9997 \\
-    objective & 0.0001109515 \\
-    \bottomrule
-  \end{tabular}
-  \end{center}
-\end{frame}
-
-\begin{frame}{Appendix: Original-Compatible Reproduction}
-  Original-compatible MTL/MPL adapters were kept as provenance, not copied wholesale.
+\begin{frame}{Appendix: Additional Error Definitions}
+  For errors \(e_t=\widehat y_t-y_t\):
+  \[
+    \mathrm{MAPE}
+      =\frac{1}{|I|}\sum_{t\in I}\frac{|e_t|}{|y_t|},
+    \qquad
+    \mathrm{WorstE}
+      =\max_{t\in I}|e_t|.
+  \]
+  Regional RMSE uses the same definition as full RMSE after restricting \(I\):
   \begin{itemize}
-    \item MTL original-compatible and clean wrapper predictions agree up to numerical roundoff.
-    \item MPL original evaluator agrees with the clean wrapper when using the same parameters.
-    \item The main obstacle to direct original-code execution was hard-coded data loading, not formula mismatch.
+    \item \textbf{Stable phase}: observations before the WSD learning rate begins to decay.
+    \item \textbf{Final 20\%}: the last fifth of the evaluation interval.
+    \item \textbf{Final \(1000\) steps}: observations within \(1000\) steps of the final point.
   \end{itemize}
-\end{frame}
-
-\begin{frame}{Appendix: Why Pandas Is In The Environment}
-  The course file is a pandas pickle:
-  \[
-    \code{gpt\_loss+lrs.pkl}.
-  \]
-  The course readme explicitly says to read it with pandas. Therefore the final environment adds:
-  \[
-    \code{pandas==2.2.2}.
-  \]
-  This is the only dependency added beyond the requested scientific stack.
 \end{frame}
 
 \begin{frame}{Appendix: References}
-  \scriptsize
-  \begin{itemize}
-    \item Tissue, Wang, and Wang. \emph{Scaling Law with Learning Rate Annealing}. 2024.
-    \item Luo et al. \emph{A Multi-Power Law for Loss Curve Prediction Across Learning Rate Schedules}. 2024.
-    \item Li, Chen, Huang, Wang, and Wu. \emph{Functional Scaling Laws in Kernel Regression: Loss Dynamics and Learning Rate Schedules}. 2025.
-    \item Zhang, Wen, and Ma. \emph{Configuration-to-Performance Scaling Law with Neural Ansatz}. 2026.
-    \item Hu et al. \emph{MiniCPM: Unveiling the Potential of Small Language Models with Scalable Training Strategies}. 2024.
-    \item Bi et al. \emph{DeepSeek LLM: Scaling Open-Source Language Models with Longtermism}. 2024.
-  \end{itemize}
+  \footnotesize
+  \begin{enumerate}
+    \item Howe Tissue, Venus Wang, and Lu Wang. \emph{Scaling Law with Learning Rate Annealing}. 2024. \href{https://arxiv.org/abs/2408.11029}{arXiv:2408.11029}.
+    \item Kairong Luo, Haodong Wen, Shengding Hu, Zhenbo Sun, Zhiyuan Liu, Maosong Sun, Kaifeng Lyu, and Wenguang Chen. \emph{A Multi-Power Law for Loss Curve Prediction Across Learning Rate Schedules}. 2025. \href{https://arxiv.org/abs/2503.12811}{arXiv:2503.12811}.
+    \item Binghui Li, Fengling Chen, Zixun Huang, Lean Wang, and Lei Wu. \emph{Functional Scaling Laws in Kernel Regression: Loss Dynamics and Learning Rate Schedules}. 2025. \href{https://arxiv.org/abs/2509.19189}{arXiv:2509.19189}.
+    \item Huaqing Zhang, Kaiyue Wen, and Tengyu Ma. \emph{Configuration-to-Performance Scaling Law with Neural Ansatz}. 2026. \href{https://arxiv.org/abs/2602.10300}{arXiv:2602.10300}.
+  \end{enumerate}
+  \vspace{0.35em}
+  References 1--3 support the reproduced baseline formulations. Reference 4 motivates the small residual-correction exploration.
 \end{frame}
 
 \end{document}

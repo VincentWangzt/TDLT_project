@@ -11,7 +11,7 @@ from .models.fsl import fsl_fit_indices, fsl_sanity_checks, fit_fsl_model, predi
 from .models.kmtl import fit_kmtl, predict_kmtl
 from .models.mpl_like import fit_mpl_like, fit_ncpl_lite, predict_mpl_like, predict_ncpl_lite
 from .models.mtl import WIDE_LAMBDA_GRID, fit_mtl, predict_mtl
-from .plotting import plot_error_comparison, plot_loss_curves, plot_lr_schedules, plot_prediction, plot_wsd_rmse_bar
+from .plotting import display_method, plot_error_comparison, plot_loss_curves, plot_lr_schedules, plot_prediction, plot_wsd_rmse_bar
 from .protocols import ProtocolConfig, strict_indices
 from .utils import ensure_dir, read_json, write_json
 
@@ -73,8 +73,9 @@ def write_result_bundle(
     plot_error_comparison(predictions, "wsd", fig_dir / "wsd_error_comparison.png")
     for method in sorted(predictions["method"].unique()):
         safe = method.lower().replace("+", "plus").replace(" ", "_").replace("-", "")
-        plot_prediction(predictions, method, "wsd", fig_dir / f"{safe}_wsd_prediction.png", f"{method}: WSD prediction")
-        plot_prediction(predictions, method, "cosine", fig_dir / f"{safe}_cosine_fit.png", f"{method}: cosine fit")
+        label = display_method(method)
+        plot_prediction(predictions, method, "wsd", fig_dir / f"{safe}_wsd_prediction.png", f"{label}: WSD prediction")
+        plot_prediction(predictions, method, "cosine", fig_dir / f"{safe}_cosine_fit.png", f"{label}: cosine fit")
 
 
 def run_baselines(

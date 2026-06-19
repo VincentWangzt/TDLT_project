@@ -28,7 +28,8 @@ The repository exposes:
 - FSL-MPL+ small/source and NCPL-lite residual variants.
 - Tuned MTL: the pinned final hyperparameter-level MTL result found by WSD-adaptive
   autoresearch. It is replayed from stored parameters and explicitly marked as tuned on
-  WSD feedback.
+  WSD feedback. Its selected attempt id, wide lambda grid, restart count, tail weight,
+  and replay metrics are summarized in `configs/tuned_mtl_selection.json`.
 
 ## Environment
 
